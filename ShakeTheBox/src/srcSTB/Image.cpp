@@ -20,22 +20,41 @@ void Image::GetPixels(int**& pixels) const throw(runtime_error)
 		throw runtime_error("NULL argument in Image::GetPixels()");
 	}
 	// remove after testing with matlab image
-	for (int j = 0; j < cols ; ++j)
-		pixels[0][j] = 0;
+	//for (int j = 0; j < cols ; ++j)
+	//	pixels[0][j] = 0;
 
-	for (int j = 0; j < rows; ++j)
-		pixels[j][0] = 0;
+	//for (int j = 0; j < rows; ++j)
+	//	pixels[j][0] = 0;
 
 
 //	 edit after matlab testing
-	for (int i = 0; i < rows-1; ++i) {
-		for (int j = 0; j < cols-1; ++j) {
-			pixels[i+1][j+1] = static_cast<int>(buffer[cols * i + j]);
+	//for (int i = 0; i < rows-1; ++i) {
+	//	for (int j = 0; j < cols-1; ++j) {
+	//		pixels[i+1][j+1] = static_cast<int>(buffer[cols * i + j]);
+	//	}
+	//}
+
+	//	 edit after matlab testing
+
+	if ( 65535 == depth )
+	{
+		for (int i = 0; i < rows; ++i) {
+			for (int j = 0; j < cols; ++j) {
+				pixels[i][j] = static_cast<int>(*((unsigned short*)buffer + cols * i + j));
+			}
 		}
 	}
+	else if ( 255 == depth )
+	{
+		for (int i = 0; i < rows; ++i) {
+			for (int j = 0; j < cols; ++j)
+				pixels[i][j] = static_cast<int>(buffer[cols * i + j]);
+		}
+	}
+	else
+	{
+		throw;
+	}
 
-//	for (int i = 0; i < rows; ++i) {
-//		for (int j = 0; j < cols; ++j)
-//			pixels[i][j] = static_cast<int>(buffer[cols * i + j]);
-//	}
+	//cout << "test intensity = " << pixels[828][482] << endl;
 }

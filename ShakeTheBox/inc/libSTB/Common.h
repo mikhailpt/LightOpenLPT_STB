@@ -44,6 +44,7 @@ struct ConfigFile {
 	double lowerInt;
 	bool backSTB;
 	double dist_two_tracks;
+	string m_prjPath;
 };
 
 // Data for debug

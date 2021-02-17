@@ -8,6 +8,8 @@
 #include <Camera.h>
 #include <OTF.h>
 
+//#define SAVE_INTERMEDIATE_SHAKES
+
 using namespace std;
 class Shaking {
 //class Shaking {
@@ -23,8 +25,9 @@ public:
 	// ############################### FUNCTIONS ############################################
 
 	// constructor
-	Shaking(int ncams, int ignoreCam, OTF& otfcalib, int Npixw, int Npixh, int psize, double d, Position p, deque<Camera> camParam, deque<int**>& residual, double I);
-	
+	Shaking(int ncams, int ignoreCam, OTF& otfcalib, int Npixw, int Npixh, int psize, double d, Position p,
+		deque<Camera> camParam, deque<int**>& residual, double I, int outerLoopIndex = 0, int innerLoopIndex = 0);
+
 	// destructor/home/shiyongtan/Documents/Research/AshwanthCode/Shake-the-box/CPVGDFTracker_gv/lib/OTF.cpp
 	~Shaking() {
 		for (int n = 0; n < rcams; n++) {
@@ -40,7 +43,7 @@ public:
 		delete[] pixels_PartAugRes;
 		//cout << "Shaking destructor" << endl;
 	};
-
+	void PosGrad();
 	// gives the updated position after shaking
 	void Pos();
 	// gives the range of pixels on all cameras around the particle pos
@@ -67,6 +70,10 @@ public:
 
 	Position& Get_posnew();
 	double Get_int();
+	bool Get_xlim() { return m_shakeLimX; }
+	bool Get_ylim() { return m_shakeLimY; }
+	bool Get_zlim() { return m_shakeLimZ; }
+	Position Get_lims() { return Position(m_shakeLimX, m_shakeLimY, m_shakeLimZ); }
 
 //private:
 	//################################## VARIABLES ##########################################
@@ -95,6 +102,11 @@ public:
 	// new position and intensity
 	Position pos3Dnew;
 	double int3D;
+
+	// shake status
+	bool m_shakeLimX;
+	bool m_shakeLimY;
+	bool m_shakeLimZ;
 };
 
 inline Position& Shaking::Get_posnew() {

@@ -20,22 +20,14 @@
 #include <Frame.h>
 #include <STB.h>
 #include "BackSTB.h"
-#ifdef WINDOWS
-	#include <dirent.h>
-#else
-	#include <gnu/libc-version.h>
-#endif
-
+//#include <gnu/libc-version.h>
 #include "Common.h"
 #include "BoundaryCheck.h"
+#include <direct.h>
 
 using namespace std;
 
-#ifdef WINDOWS
-	char* version = "W2.1.041619"; //Version of this project
-#else
-	char* version = "L2.1.041619"; //Version of this project
-#endif
+char* version = "2.1.041619"; //Version of this project
 
 // globals
 ConfigFile config;
@@ -47,41 +39,63 @@ bool to_save_data;
 // Boundary check
 BoundaryCheck boundary_check;
 
+#include "Shlwapi.h"
 
 void ImportConfiguration(struct ConfigFile* config, char* name);
 
-void GetDebugMode() {
-	cout<<"Select debug mode:\n"
-			<<"0. No debug\n"
-			<<"1. Load the 2D position \n"
-			<<"2. Load the 3D position before shaking\n"
-			<<"3. Load the 3D position after shaking\n"
-			<<"4. Load the 3D positions for predictive field \n"
-			<<"5. Load the predictive field \n"
-			<<"6. Load the tracks from the initial phase \n"
-			<<"7. Load the tracks from specific frames \n"
-			<<"8. Load the tracks from specific frames for back STB \n"
-			<<"Enter the NO. of the option:";
+void GetDebugMode(int argc, char** argv) {
+	cout << "Select debug mode:\n"
+		<< "0. No debug\n"
+		<< "1. Load the 2D position\n"
+		<< "2. Load the 3D position before shaking\n"
+		<< "3. Load the 3D position after shaking\n"
+		<< "4. Load the 3D positions for predictive field\n"
+		<< "5. Load the predictive field\n"
+		<< "6. Load the tracks from the initial phase\n"
+		<< "7. Load the tracks from specific frames\n"
+		<< "8. Load the tracks from specific frames for back STB\n"
+		<< "Enter the NO. of the option:\n";
 	int NO = 0;
-	cin>>NO;
-	if (NO < 9) debug_mode = DebugMode(NO); else debug_mode = DebugMode(0);
-//	cout<<debug_mode<<endl;
-	if (!(NO == 0)) {
-		cout<<"Enter the frame number to be debugged:";
-		cin>>debug_frame_number;
-//		cout<<debug_frame_number;
+	//cin>>NO;
+	//NO = 7;
+	if ( argc > 2 )
+	{
+		NO = atoi(argv[2]);
 	}
-	cout<<"To save data(1):";
-	cin>>to_save_data;
+	cout << "NO was set to = " << NO << "\n";
+
+	if (NO < 9)
+		debug_mode = DebugMode(NO);
+	else
+		debug_mode = DebugMode(0);
+
+	//if ( !(NO == 0) ) {
+	//	cout << "Enter the frame number to be debugged:";
+	//	cin >> debug_frame_number;
+	//}
+
+	debug_frame_number = 0;
+	//debug_frame_number = 9;
+
+	if ( argc > 3 )
+	{
+		debug_frame_number = atoi(argv[3]);
+	}
+	cout << "debug_frame_number was set to = " << debug_frame_number << "\n";
+
+	//cout << "To save data(1):";
+	//cin>>to_save_data;
+
+	to_save_data = true;
 }
 
 
 
  int main(int argc, char** argv) {
-	 printf("Code version: %s\n", version);
-		if (argc < 2) {
 
-			cerr << "Usage: " << argv[0] << " <configuration file>" << endl;
+	printf("Code version: %s\n", version);
+	if (argc < 2) {
+		cerr << "Usage: " << argv[0] << " <configuration file>" << endl;
 		exit(1);
 	}
 
@@ -90,54 +104,32 @@ void GetDebugMode() {
 	boundary_check.SetLimit(config.x_upper_limt, config.x_lower_limit, config.y_upper_limt, config.y_lower_limit,
 			config.z_upper_limt, config.z_lower_limit);
 
-	GetDebugMode();
+	GetDebugMode(argc, argv);
 
 	//Create folder to save tracks
 	struct stat info;
 
-	string folder_path = config.iprfile;
-	folder_path.erase(folder_path.size() - 13, 13); //erase iprconfig.txt
-	folder_path = folder_path + "Tracks";
+	//string folder_path = config.iprfile;
+	//folder_path.erase(folder_path.size() - 13, 13); //erase iprconfig.txt
+	char buf[MAX_PATH];
+	string folder_path = PathCombineA(buf, config.m_prjPath.c_str(), "Tracks");//folder_path + "Tracks";
 
-#ifdef WINDOWS
-    if( stat( folder_path.c_str(), &info ) != 0 ) {
-        printf( "cannot access %s\n", folder_path.c_str() );
-        mkdir(folder_path.c_str());
-        mkdir((folder_path + "/InitialTracks").c_str());
-        mkdir((folder_path + "/ConvergedTracks").c_str());
-        mkdir((folder_path + "/BackSTBTracks").c_str());
-        printf( "%s have been created!\n", folder_path.c_str() );
-    }
-    else if( info.st_mode & S_IFDIR )  // S_ISDIR() doesn't exist on my windows
-        printf( "%s exists\n", folder_path.c_str() );
-    else {
-            mkdir(folder_path.c_str());
-            mkdir((folder_path + "/InitialTracks").c_str());
-            mkdir((folder_path + "/ConvergedTracks").c_str());
-            mkdir((folder_path + "/BackSTBTracks").c_str());
-            printf( "%s have been created!\n", folder_path.c_str() );
-    }
-
-#else
-	if( stat( folder_path.c_str(), &info ) != 0 ) {
-	    printf( "cannot access %s\n", folder_path.c_str() );
-	    mkdir(folder_path.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-	    mkdir((folder_path + "/InitialTracks").c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-	    mkdir((folder_path + "/ConvergedTracks").c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-	    mkdir((folder_path + "/BackSTBTracks").c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-	    mkdir((folder_path + "/IPRcandidates").c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-	    printf( "%s have been created!\n", folder_path.c_str() );
+	if (stat(folder_path.c_str(), &info) != 0) {
+		printf("cannot access %s\n", folder_path.c_str());
+		_mkdir(folder_path.c_str());
+		printf("%s have been created!\n", folder_path.c_str());
 	}
-	else if( info.st_mode & S_IFDIR )  // S_ISDIR() doesn't exist on my windows
-	    printf( "%s exists\n", folder_path.c_str() );
+	else if (info.st_mode & S_IFDIR) {  // S_ISDIR() doesn't exist on my windows
+		printf("%s exists\n", folder_path.c_str());
+	}
 	else {
-		mkdir(folder_path.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-		mkdir((folder_path + "/InitialTracks").c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-		mkdir((folder_path + "/ConvergedTracks").c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-		mkdir((folder_path + "/BackSTBTracks").c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-		printf( "%s have been created!\n", folder_path.c_str() );
+		_mkdir(folder_path.c_str());
+		printf("%s have been created!\n", folder_path.c_str());
 	}
-#endif
+
+	_mkdir((folder_path + "/InitialTracks").c_str());
+	_mkdir((folder_path + "/ConvergedTracks").c_str());
+	_mkdir((folder_path + "/BackSTBTracks").c_str());
 
 	// read the camera calibration information
 	//Calibration calib(config.iprfile);
@@ -149,13 +141,12 @@ void GetDebugMode() {
 	// do the stereomatching
 	//cout << "Stereomatching..." << endl;
 	//calib.writeGDFHeader(config.stereomatched);
-
-
+	
 	// tracking using STB
 //	auto start = std::chrono::system_clock::now();
 	STB s(config.first, config.last, config.pfieldfile, config.iprfile, config.ncams, config.camIDs, config.imgNameFiles,
 		config.initialPhaseRadius, config.avgSpace, config.largestShift, config.maxAbsShiftChange,
-		config.maxRelShiftChange, config.fpt, config.lowerInt, config.iprFlag);
+		config.maxRelShiftChange, config.fpt, config.lowerInt, config.iprFlag, config.m_prjPath);
 //	auto end = std::chrono::system_clock::now();
 //	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 //	cout << "Total time: "<<elapsed.count() << '\n';
@@ -219,6 +210,12 @@ void GetDebugMode() {
 }
 
 void ImportConfiguration(struct ConfigFile* config, char* name) {
+
+		char buf[MAX_PATH] = "";
+		strcpy_s(buf, name);
+		PathRemoveFileSpecA(buf);
+		config->m_prjPath = buf;
+
 		cout << "Reading configuration file..." << endl;
 		ifstream file(name, ios::in);
 		string line;
@@ -241,11 +238,11 @@ void ImportConfiguration(struct ConfigFile* config, char* name) {
 
 		getline(file, line);
 		line.erase(line.find_first_of(' '));
-		config->iprfile = line;
+		config->iprfile = PathCombineA(buf, config->m_prjPath.c_str(), line.c_str());
 
 		getline(file, line);
 		line.erase(line.find_first_of(' '));
-		config->pfieldfile = line;
+		config->pfieldfile = PathCombineA(buf, config->m_prjPath.c_str(), line.c_str());
 
 		//getline(file, line);
 		//line.erase(line.find_first_of(' '));

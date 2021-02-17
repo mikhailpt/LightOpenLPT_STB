@@ -1,0 +1,202 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{2A5CBB15-A870-47FC-A289-99DE1D0C1AEE}</ProjectGuid>
+    <RootNamespace>ShakeTheBox</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <IncludePath>$(ProjectDir)inc\libSTB;$(ProjectDir)inc\libMath;$(ProjectDir)inc\DataIO;$(ProjectDir)inc\libtiff-4.1.0;$(ProjectDir)inc\libMath\boost;$(IncludePath)</IncludePath>
+    <LibraryPath>$(ProjectDir)inc\libtiff-4.1.0\libs;$(ProjectDir)x64\Release;$(LibraryPath)</LibraryPath>
+    <TargetName>$(ProjectName)</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <IncludePath>$(ProjectDir)inc\libSTB;$(ProjectDir)inc\libMath;$(ProjectDir)inc\DataIO;$(ProjectDir)inc\libtiff-4.1.0;$(ProjectDir)inc\libMath\boost;$(IncludePath)</IncludePath>
+    <LibraryPath>$(ProjectDir)inc\libtiff-4.1.0\libs;$(ProjectDir)x64\Release;$(LibraryPath)</LibraryPath>
+    <TargetName>$(ProjectName)</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OpenMPSupport>false</OpenMPSupport>
+      <LanguageStandard>Default</LanguageStandard>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>tiff.lib;shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
+    </Link>
+    <PostBuildEvent>
+      <Command>xcopy "$(ProjectDir)inc\libtiff-4.1.0\libs\tiff.dll" "$(OutDir)"  /y /s  /d
+xcopy "$(ProjectDir)inc\libtiff-4.1.0\libs\tiff.lib" "$(OutDir)"  /y /s  /d</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <Profile>true</Profile>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OpenMPSupport>true</OpenMPSupport>
+      <LanguageStandard>Default</LanguageStandard>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>tiff.lib;shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <Profile>true</Profile>
+      <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
+    </Link>
+    <PostBuildEvent>
+      <Command>xcopy "$(ProjectDir)inc\libtiff-4.1.0\libs\tiff.dll" "$(OutDir)"  /y /s  /d
+xcopy "$(ProjectDir)inc\libtiff-4.1.0\libs\tiff.lib" "$(OutDir)"  /y /s  /d</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="src\CPVGDFTracker.cpp" />
+    <ClCompile Include="src\srcDataIO\GDF.cpp" />
+    <ClCompile Include="src\srcDataIO\NumDataIO.cpp" />
+    <ClCompile Include="src\srcMath\Matrix.cpp" />
+    <ClCompile Include="src\srcSTB\BackSTB.cpp" />
+    <ClCompile Include="src\srcSTB\BoundaryCheck.cpp" />
+    <ClCompile Include="src\srcSTB\Calibration.cpp" />
+    <ClCompile Include="src\srcSTB\Camera.cpp" />
+    <ClCompile Include="src\srcSTB\ForwardSTB.cpp" />
+    <ClCompile Include="src\srcSTB\Frame.cpp" />
+    <ClCompile Include="src\srcSTB\Image.cpp" />
+    <ClCompile Include="src\srcSTB\IPR.cpp" />
+    <ClCompile Include="src\srcSTB\OTF.cpp" />
+    <ClCompile Include="src\srcSTB\ParticleFinder.cpp" />
+    <ClCompile Include="src\srcSTB\Position.cpp" />
+    <ClCompile Include="src\srcSTB\PredictiveField.cpp" />
+    <ClCompile Include="src\srcSTB\Shaking.cpp" />
+    <ClCompile Include="src\srcSTB\STB.cpp" />
+    <ClCompile Include="src\srcSTB\Tiff2DFinder.cpp" />
+    <ClCompile Include="src\srcSTB\Tiffload.cpp" />
+    <ClCompile Include="src\srcSTB\Track.cpp" />
+    <ClCompile Include="src\srcSTB\WesleyanCPV.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="inc\DataIO\DataIO.h" />
+    <ClInclude Include="inc\DataIO\GDF.h" />
+    <ClInclude Include="inc\DataIO\NumDataIO.h" />
+    <ClInclude Include="inc\libMath\linterp.h" />
+    <ClInclude Include="inc\libMath\Logs.h" />
+    <ClInclude Include="inc\libMath\Matrix.h" />
+    <ClInclude Include="inc\libMath\MergeSort.h" />
+    <ClInclude Include="inc\libSTB\BackSTB.h" />
+    <ClInclude Include="inc\libSTB\BoundaryCheck.h" />
+    <ClInclude Include="inc\libSTB\Calibration.h" />
+    <ClInclude Include="inc\libSTB\Camera.h" />
+    <ClInclude Include="inc\libSTB\Common.h" />
+    <ClInclude Include="inc\libSTB\ForwardSTB.h" />
+    <ClInclude Include="inc\libSTB\Frame.h" />
+    <ClInclude Include="inc\libSTB\Image.h" />
+    <ClInclude Include="inc\libSTB\IPR.h" />
+    <ClInclude Include="inc\libSTB\OTF.h" />
+    <ClInclude Include="inc\libSTB\ParticleFinder.h" />
+    <ClInclude Include="inc\libSTB\Position.h" />
+    <ClInclude Include="inc\libSTB\PredictiveField.h" />
+    <ClInclude Include="inc\libSTB\Shaking.h" />
+    <ClInclude Include="inc\libSTB\STB.h" />
+    <ClInclude Include="inc\libSTB\Tiff2DFinder.h" />
+    <ClInclude Include="inc\libSTB\Tiffload.h" />
+    <ClInclude Include="inc\libSTB\Track.h" />
+    <ClInclude Include="inc\libSTB\WesleyanCPV.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

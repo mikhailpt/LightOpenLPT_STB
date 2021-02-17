@@ -581,7 +581,7 @@ void BackSTB::Shake(STB& s, Frame& estimate, deque<double>& intensity, deque<Tra
 					for (int j = 0; j < s.Npixw; j++)
 						pixels_res[n][i][j] = (pixels_orig[n][i][j] - abs(pixels_reproj[n][i][j]));
 
-#pragma omp parallel num_threads(24)
+#pragma omp parallel //snum_threads(24)
 						{
 //			int index = 0;
 			// correcting the estimated positions and their intensity by shaking

@@ -42,27 +42,27 @@ int operator>(const Position& left, const Position& right)
 	return left.y > right.y;
 }
 
-const Position operator+(const Position& left, const Position& right)
+Position operator+(const Position& left, const Position& right)
 {
   return Position(left.x + right.x, left.y + right.y, left.z + right.z);
 }
 
-const Position operator-(const Position& left, const Position& right)
+Position operator-(const Position& left, const Position& right)
 {
   return Position(left.x - right.x, left.y - right.y, left.z - right.z);
 }
 
-const Position operator*(const Position& left, double right)
+Position operator*(const Position& left, double right)
 {
   return Position(left.x * right, left.y * right, left.z * right);
 }
 
-const Position operator*(double left, const Position& right)
+Position operator*(double left, const Position& right)
 {
   return Position(left * right.x, left * right.y, left * right.z);
 }
 
-const Position operator/(const Position& left, double right)
+Position operator/(const Position& left, double right)
 {
   return Position(left.x / right, left.y / right, left.z / right);
 }

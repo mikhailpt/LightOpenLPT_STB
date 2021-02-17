@@ -15,6 +15,15 @@
 #include <Calibration.h>
 #include <Shaking.h>
 
+//Для тесирывания точности shaking
+//#define	TEST_PARTICLES_GENERATION
+#define TEST_PARTICLES_GENERATION_N 100//1500//3500
+#include <random>
+#include <functional>
+#ifdef TEST_PARTICLES_GENERATION
+//#define TEST_PARTICLES_GENERATION_SAVE
+#endif // TEST_PARTICLES_GENERATION
+
 class IPR {
 
 public:
@@ -23,7 +32,7 @@ public:
 	// default constructor: do nothing
 	IPR() {};
 	//constructor: file contains information about image names and OTF param
-	IPR(std::string& fname, int ncams);
+	IPR(std::string& fname, int ncams, std::string& prjPath);
 	//destructor
 	~IPR() {
 		for (int n = 0; n < ncams; n++) {
@@ -52,6 +61,7 @@ public:
 
 	// a fuction that takes all the 3D positions and gives reprojected images: (I_proj)
 	void ReprojImage(Frame matched3D, OTF& OTFcalib, deque<int**>& pixels_reproj, bool STB);
+	void TestParticleGeneration(deque<int**>& pixels_reproj);
 
 	void ReprojImage(Frame matched3D, OTF& OTFcalib, deque<int**>& pixels_reproj, double projsize);
 
@@ -142,9 +152,12 @@ protected:
 	// for testing:
 	deque<Position> ghost3D;
 
+	std::deque<Position> rnd_points;//(TEST_PARTICLES_GENERATION_N);
+	bool m_bFirstTime = true;
+
 private:
-	void Position2Array(deque<Position> pos, double* array);
-	deque<Position> Array2Position(int num_particle, double array[][12]);
+	void Position2Array(deque<Position> pos, double *array);
+	deque<Position> Array2Position(int num_particle, double *array);
 	/*
 		 * Function: Save particle intensity to txt file
 		 * Input: intensity

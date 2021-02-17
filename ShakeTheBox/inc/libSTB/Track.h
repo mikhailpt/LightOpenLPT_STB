@@ -40,6 +40,12 @@ public:
   // Add a new point to the Track
   void AddNext(const Position& p, int t);
   // Add another Track onto the end of this one
+  void SetPredictedPos(const Position& p) {
+      m_lastPredicted = p;
+  }
+  const Position GetPredictedPos() {
+      return m_lastPredicted;
+  }
   void AddNext(const Track& t);
 
   // Delete a point to the end of the Track
@@ -109,13 +115,14 @@ public:
   void Clear();
 
 private:
-	std::deque<Position> pos;
+  std::deque<Position> pos;
   std::deque<int> time;	// the time (as an integer frame number)
   int occluded; // a counter keeping track of the number of frames this 
                 // track hasn't had a real particle added to it.
   int npoints;
 
   bool active;
+  Position m_lastPredicted;
 };
 
 // Inline Function Definitions

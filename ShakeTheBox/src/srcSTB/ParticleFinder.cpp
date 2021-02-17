@@ -208,14 +208,16 @@ void ParticleFinder::GetParticle2DCenter(int depth, int threshold) {
 				// find the column value, moving 0 intensities to 0.0001 so we can
 				// take their log
 				double lnz1, lnz2, lnz3;
+
 				if (colors == 255) {
+
 					if (pixels[i][j - 1] == 0) {
 						lnz1 = log(0.0001);
 					} else {
 						lnz1 = Logs::log8bit[pixels[i][j - 1]];
 					}
 					if (pixels[i][j] == 0) {
-            			lnz2 = log(0.0001);
+						lnz2 = log(0.0001);
 					} else {
 						lnz2 = Logs::log8bit[pixels[i][j]];
 					}
@@ -224,27 +226,53 @@ void ParticleFinder::GetParticle2DCenter(int depth, int threshold) {
 					} else {
 						lnz3 = Logs::log8bit[pixels[i][j + 1]];
 					}
-        } else if (colors == 65535) {
-          lnz1 = Logs::log16bit[pixels[i][j - 1]];
-          lnz2 = Logs::log16bit[pixels[i][j]];
-					lnz3 = Logs::log16bit[pixels[i][j + 1]];
+
+				} else if (colors == 65535) {
+
+					//lnz1 = Logs::log16bit[pixels[i][j - 1]];
+					//lnz2 = Logs::log16bit[pixels[i][j]];
+					//lnz3 = Logs::log16bit[pixels[i][j + 1]];
+
+					if (pixels[i][j - 1] == 0) {
+						lnz1 = log(0.0001);
+					}
+					else {
+						lnz1 = Logs::log16bit[pixels[i][j - 1]];
+					}
+					if (pixels[i][j] == 0) {
+						lnz2 = log(0.0001);
+					}
+					else {
+						lnz2 = Logs::log16bit[pixels[i][j]];
+					}
+					if (pixels[i][j + 1] == 0) {
+						lnz3 = log(0.0001);
+					}
+					else {
+						lnz3 = Logs::log16bit[pixels[i][j + 1]];
+					}
+
 				} else {
-          if (pixels[i][j - 1] == 0) {
+
+					if (pixels[i][j - 1] == 0) {
 						lnz1 = log(0.0001);
 					} else {
 						lnz1 = log(static_cast<double>(pixels[i][j - 1]));
 					}
+
 					if (pixels[i][j] == 0) {
-            lnz2 = log(0.0001);
+						lnz2 = log(0.0001);
 					} else {
 						lnz2 = log(static_cast<double>(pixels[i][j]));
 					}
+
 					if (pixels[i][j + 1] == 0) {
 						lnz3 = log(0.0001);
 					} else {
 						lnz3 = log(static_cast<double>(pixels[i][j + 1]));
 					}
-        }
+
+				}
 
 				double xc = -0.5 * ((lnz1 * ((x2 * x2) - (x3 * x3))) - (lnz2 * ((x1 * x1) - (x3 * x3))) + (lnz3 * ((x1 * x1) - (x2 * x2)))) / ((lnz1 * (x3 - x2)) - (lnz3 * (x1 - x2)) + (lnz2 * (x1 - x3)));
 
@@ -256,30 +284,49 @@ void ParticleFinder::GetParticle2DCenter(int depth, int threshold) {
 
 				// find the row value
 				if (colors == 255) {
-          if (pixels[i - 1][j] == 0) {
+
+					if (pixels[i - 1][j] == 0) {
 						lnz1 = log(0.0001);
 					} else {
 						lnz1 = Logs::log8bit[pixels[i - 1][j]];
 					}
 					if (pixels[i + 1][j] == 0) {
-            lnz3 = log(0.0001);
+						lnz3 = log(0.0001);
 					} else {
 						lnz3 = Logs::log8bit[pixels[i + 1][j]];
 					}
+
 				} else if (colors == 65535) {
-					lnz1 = Logs::log16bit[pixels[i - 1][j]];
-					lnz3 = Logs::log16bit[pixels[i + 1][j]];
+
+					//lnz1 = Logs::log16bit[pixels[i - 1][j]];
+					//lnz3 = Logs::log16bit[pixels[i + 1][j]];
+
+					if (pixels[i - 1][j] == 0) {
+						lnz1 = log(0.0001);
+					} else {
+						lnz1 = Logs::log16bit[pixels[i - 1][j]];
+					}
+					if (pixels[i + 1][j] == 0) {
+						lnz3 = log(0.0001);
+					}
+					else {
+						lnz3 = Logs::log16bit[pixels[i + 1][j]];
+					}
+
 				} else {
-          if (pixels[i - 1][j] == 0) {
+
+					if (pixels[i - 1][j] == 0) {
 						lnz1 = log(0.0001);
 					} else {
 						lnz1 = log(static_cast<double>(pixels[i - 1][j]));
 					}
+
 					if (pixels[i + 1][j] == 0) {
-            lnz3 = log(0.0001);
+						lnz3 = log(0.0001);
 					} else {
 						lnz3 = log(static_cast<double>(pixels[i + 1][j]));
 					}
+
 				}
 
 				double yc = -0.5 * ((lnz1 * ((y2 * y2) - (y3 * y3))) - (lnz2 * ((y1 * y1) - (y3 * y3))) +
@@ -422,14 +469,6 @@ bool ParticleFinder::IsLocalMax(int r, int c)
   int val = pixels[r][c];
 
   // check only the 4 neighbors directly above, below, to the left, and to the right
-  int num_pix = 4;
-//  if (pixels[r][c - 1] > val) --num_pix;
-//  if (pixels[r][c + 1] > val) --num_pix;
-//  if (pixels[r - 1][c] > val) --num_pix;
-//  if (pixels[r + 1][c] > val) --num_pix;
-//
-//  if (num_pix <= 2) return false;
-
   if ((pixels[r][c - 1] > val) || (pixels[r][c + 1] > val) || (pixels[r - 1][c] > val) || (pixels[r + 1][c] > val)) {
     return false;
   }
@@ -505,10 +544,8 @@ void ParticleFinder::SaveParticle2DCenter(string file_path) {
 	data_io.SetFilePath(file_path + "txt");
 	deque<double>::const_iterator xi_end = x.end();
 	deque<double>::const_iterator yi = y.begin();
-//	double particle_2Dcenter[x.size()][2];
-	double* particle_2Dcenter = new double[x.size() * 2];
-//	for (int i = 0; i < x.size(); ++i)
-//		particle_2Dcenter[i] = new double[2];
+	vector<double> particle_2Dcenter(2 * x.size());
+
 	int i = 0;
 	for (deque<double>::const_iterator xi = x.begin(); xi != xi_end; ++xi, ++yi) {
 		particle_2Dcenter[2 * i] = *xi;
@@ -516,9 +553,7 @@ void ParticleFinder::SaveParticle2DCenter(string file_path) {
 		i++;
 	}
 	data_io.SetTotalNumber(i * 2);
-	data_io.WriteData((double *) particle_2Dcenter);
-
-	delete[] particle_2Dcenter;
+	data_io.WriteData((double *) &particle_2Dcenter[0]);
 }
 
 // Read the particle 2D center to txt file
@@ -526,13 +561,13 @@ Frame ParticleFinder::ReadParticle2DCenter(string file_path) {
 	NumDataIO<double> data_io;
 	file_path.erase(file_path.end() - 3, file_path.end()); // erase "tif"
 	data_io.SetFilePath(file_path + "txt");
-	int num = data_io.GetTotalNumber();
-	double* particle_2Dcenter = new double[num];
+	int num = data_io.GetTotalNumber(); 
+	vector<double> particle_2Dcenter(num);
 	deque<Position> pos;
 	data_io.SetTotalNumber(num);
-	data_io.ReadData(particle_2Dcenter);
+	data_io.ReadData((double *) &particle_2Dcenter[0]);
 	for (int i = 0; i < num / 2; i++) {
-		pos.push_back(Position(particle_2Dcenter[i*2], particle_2Dcenter[i*2 + 1], 0));
+		pos.push_back(Position(particle_2Dcenter[2 * i], particle_2Dcenter[2 * i + 1], 0));
 	}
 	return pos;
 }

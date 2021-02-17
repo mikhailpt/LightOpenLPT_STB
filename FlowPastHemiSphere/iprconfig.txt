@@ -1,0 +1,19 @@
+0 # Triangulation Only? (No IPR or tracking) 1 for yes/ 0 for no 
+0 # Triangulation & IPR only? (No tracking)
+ 
+calibCase1.txt # Path to camera calibration file
+.\ # Path to TIFF files 
+OTFParameters.txt # Path to OTF text data file
+4  # Average particle size in pixels
+4  # No. of outerloop iterations
+4  # No. of innerloop iterations
+2162 # 2D particle finder threshold
+16  # number of bits for each pixel
+0.01 # lower intensity threshold (xx*avg. Intensity) to eliminate ghost particles
+.15		# mindist_2D 
+.15		# mindist_3D 
+
+1 # use reduced cams (apply IPR by removing 1 cam each time)? 1 for yes/ 0 for no
+2 # no. of loops for each reduced camera combination
+.15 # mindist_2D for reduced cams
+.15 # mindist_3D for reduced cams

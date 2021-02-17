@@ -273,9 +273,9 @@ void OTF::OTF_matdata() {
 	NumDataIO<double> data_io;
 	data_io.SetFilePath(mat_path);
 	int total_num = data_io.GetTotalNumber();
-	double cam_data[total_num];
+	vector<double> cam_data(total_num);
 	data_io.SetTotalNumber(total_num);
-	data_io.ReadData((double*) cam_data);
+	data_io.ReadData((double*) &cam_data[0]);
 
 	for (int i = 0; i < ncams; i++) {
 		int rows = total_num / 16;
@@ -297,40 +297,25 @@ vector <double> OTF::OTFgrid(int camID, Position& pos3D) {
 	double cornerx2 = config.x_upper_limt, cornery2 = config.y_upper_limt, cornerz2 = config.z_upper_limt;
 	// construct the grid in each dimension. 
 	// note that we will pass in a sequence of iterators pointing to the beginning of each grid
-
-	array<int, 3> grid_sizes;
-	//grid_sizes[0] = 3;
-//	grid_sizes[1] = 3;
-//	grid_sizes[2] = 3;
-
-	grid_sizes[0] = (int)cbrt(num_element);
-	grid_sizes[1] = grid_sizes[0];
-	grid_sizes[2] = grid_sizes[0];
-
-
-	std::vector<double> gridx = linspace(cornerx1, cornerx2, grid_sizes[0]);
-	std::vector<double> gridy = linspace(cornery1, cornery2, grid_sizes[1]);
-	std::vector<double> gridz = linspace(cornerz1, cornerz2, grid_sizes[2]);
+	std::vector<double> gridx = linspace(cornerx1, cornerx2, 3);
+	std::vector<double> gridy = linspace(cornery1, cornery2, 3);
+	std::vector<double> gridz = linspace(cornerz1, cornerz2, 3);
 	vector< vector<double>::iterator > grid_iter_list;
 	grid_iter_list.push_back(gridx.begin());
 	grid_iter_list.push_back(gridy.begin());
 	grid_iter_list.push_back(gridz.begin());
 
 	// the size of grid in each dimension
-//	array<int, 3> grid_sizes;
-//	//grid_sizes[0] = 3;
-////	grid_sizes[1] = 3;
-////	grid_sizes[2] = 3;
-//
-//	grid_sizes[0] = (int)pow(num_element, 1/3);
-//	grid_sizes[1] = grid_sizes[0];
-//	grid_sizes[2] = grid_sizes[0];
+	array<int, 3> grid_sizes;
+	grid_sizes[0] = 3;
+	grid_sizes[1] = 3;
+	grid_sizes[2] = 3;
 
 	// total number of elements
 	int num_elements = grid_sizes[0] * grid_sizes[1] * grid_sizes[2];
 
 	// construct the interpolator, the last two arguments are pointers to the underlying data
-//	double* test = aData[camID];
+	double* test = aData[camID];
 	InterpMultilinear<3, double> otfgrid_a(grid_iter_list.begin(), grid_sizes.begin(), aData[camID], aData[camID] + num_elements);
 	InterpMultilinear<3, double> otfgrid_b(grid_iter_list.begin(), grid_sizes.begin(), bData[camID], bData[camID] + num_elements);
 	InterpMultilinear<3, double> otfgrid_c(grid_iter_list.begin(), grid_sizes.begin(), cData[camID], cData[camID] + num_elements);

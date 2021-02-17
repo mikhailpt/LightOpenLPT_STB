@@ -10,6 +10,7 @@
 #include "NumDataIO.h"
 #include "Common.h"
 
+
 /*
  * The code of template class in this file is insufficient for compiler to produce the methods
  * in this file which are needed in other file. So it would cause undefined reference problem.
@@ -45,9 +46,10 @@ int NumDataIO <T>::ReadData(T* data) {
 	if (infile.is_open()) {
 		std::string line;
 		std::getline(infile, line); // reading a line into line.
+		infile.close();
 		std::stringstream ss(line); // make the line as a stringstream to separate the line
 		std::string cell; //to save each element
-		if (m_total_number <= 0) m_total_number = GetTotalNumber();
+		m_total_number = GetTotalNumber();
 		for (unsigned int i = 0; i < m_total_number + m_skip_data_num; i++ ) {
 			getline(ss, cell, ',');
 			if (i >= m_skip_data_num) {  // skip the set number of data
@@ -64,7 +66,6 @@ int NumDataIO <T>::ReadData(T* data) {
 				}
 			}
 		}
-		infile.close();
 	} else {
 		error = NO_FILE;
 	}
@@ -91,4 +92,14 @@ int NumDataIO<T>::GetTotalNumber() {
 template class NumDataIO<int>;
 template class NumDataIO<double>;
 
+template<class T>
+int NumDataIO<T>::m_total_number = 0;	// total number of the matrix elements
 
+template<class T>
+int NumDataIO<T>::m_save_mode = 0;    // save mode:0 means to overwrite, 1 to append
+
+template<class T>
+int NumDataIO<T>::m_skip_data_num = 0; // the number of data to be skipped
+
+template<class T>
+int NumDataIO<T>::m_num_precision = 8; // the precision to save the data.

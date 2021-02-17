@@ -29,7 +29,7 @@ public:
 	STB() {};
 	// constructor
 	STB(int first, int last, string pfieldfile, string iprfile, int ncams, deque<int> camIDs, deque<string> imgNameFiles,
-		double InitialRadius, double avgDist, double expShift, double masc, double mrsc, double fpt, double lowerInt, bool iprFlag);
+		double InitialRadius, double avgDist, double expShift, double masc, double mrsc, double fpt, double lowerInt, bool iprFlag, string prjPath);
 	// copy constructor
 	STB(STB& s);
 	// destructor
@@ -85,7 +85,7 @@ public:
 	void Shake(Frame& estimate, deque<double>& intensity);
 	deque<int> Rem(Frame& pos3D, deque<double>& int3D, double mindist_3D);
 	Frame IPRonResidual(Calibration& calib, Tiff2DFinder& t, deque<int**>& pixels_orig, deque<int**>& pixels_reproj, deque<int**>& pixels_res, Frame& estimates);
-	void MakeShortLinkResidual(int nextFrame, Frame& candidates, deque<Track>::iterator& tr, int iterations, bool* erase, bool* candidate_used);
+	void MakeShortLinkResidual(int nextFrame, Frame& candidates, deque<Track>::iterator& tr, int iterations, bool* erase, bool* candidate_used, int *linkType);
 	void MakeShortLinkResidual(int nextFrame, Frame& candidates, deque<Track>::iterator& tr, int iterations);
 
 //	bool CheckVelocity(deque<Track>::iterator& tr);
@@ -98,6 +98,7 @@ public:
 	void MatTracksSave(string addres, string s, bool is_back_STB);
 	void MatfileSave(deque<Track> tracks, string address, string name, int size);
 	void SaveTrackToTXT(deque<Track> tracks, string address);
+	void mySaveTrackToTXT(deque<Track> tracks, string address);
 	void LoadAllTracks(string address, string frame_number, bool is_back_STB);
 	void LoadTrackFromTXT(string path, TrackType trackType);
 
@@ -164,6 +165,7 @@ public:
 	void Load_Tracks(string path, TrackType trackType);
 	// dummy variables to identify the no. of tracks added and subtracted 
 	int a_as = 0, a_al = 0, a_is = 0, s_as1 = 0, s_as2 = 0, s_as3 = 0, s_as4 = 0, s_al = 0, a_il = 0;
+	int m_short1 = 0, m_short2 = 0, m_short3 = 0;
 	//TESTING
 	Frame tempPredictions;
 	double particle_search_radius = 0;

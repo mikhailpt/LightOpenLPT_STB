@@ -11,16 +11,14 @@
 // TODO: Temporary modification by Shiyong Tan, 2/1/18
 //#include <matio.h>
 //#include <OTF.h>
-#include "Common.h"
 
-
-
+//#define USE_KRIGING_INTERPOLATOR
 
 using namespace std;
 class PredictiveField {
 public:
 	// constructor : To get predictive field( takes the previous frame 3D pos, field parameters from file, frame, matlabFlag )
-	PredictiveField(){};
+	PredictiveField() : m_bFiltered(false) {};
 
 	void GetPredictiveField(Frame prevFramePos, Frame currFramePos, std::string& fname, int frame);
 
@@ -71,13 +69,28 @@ public:
 	}
 
 	vector<double> linspace(double first, double last, int len);
-	Position ParticleInterpolation(Position pos3D);
+
+	Position PredictiveField::ParticleInterpolation(Position pos3D) 
+	{
+#ifndef USE_KRIGING_INTERPOLATOR
+		return TrilinearInterpolation(pos3D);
+#else
+		return KrigingInterpolation(pos3D);
+#endif
+	}
+
+	Position TrilinearInterpolation(Position pos3D);
+	std::vector<Position> KrigingInterpolation(const std::vector<Position>&);
+	Position KrigingInterpolation(const Position&);
+
 
 	void MatfileSave(vector<double*> pos, string name);
 	void MatfileSave(vector<double> pos[3], string name);
 	void MatfileSave(vector< vector<double> > pos, string name);
 	void SaveField(string file_path);
 	void Load_field(string path);
+	void myLoad_field(string path, string &fname_config);
+	int ParticleFiltration();
 
 private:
 	bool getPredictiveField;
@@ -106,6 +119,7 @@ private:
 	vector<double*> field;
 	vector< vector<double> > particleDisplacements;
 
+	bool m_bFiltered;
 
 	// variables for data from .mat file
 };

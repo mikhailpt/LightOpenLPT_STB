@@ -44,6 +44,7 @@ void Tiffload::Open() throw(invalid_argument, runtime_error)
   }
   
   TIFFGetField(image, TIFFTAG_BITSPERSAMPLE, &depth);
+  std::cout << "Loaded " << std::to_string(depth) << "bit input image...\n";
   depth = (2 << (depth - 1)) - 1;
   
 /*  uint16 spp;

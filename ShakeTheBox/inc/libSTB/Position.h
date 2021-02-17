@@ -99,12 +99,12 @@ public:
 	friend int operator<(const Position& left, const Position& right);
 	friend int operator>(const Position& left, const Position& right);
   // vector sum and difference
-  friend const Position operator+(const Position& left, const Position& right);
-  friend const Position operator-(const Position& left, const Position& right);
+  friend Position operator+(const Position& left, const Position& right);
+  friend Position operator-(const Position& left, const Position& right);
   // scalar multiplication and division
-  friend const Position operator*(const Position& left, double right);
-  friend const Position operator*(double left, const Position& right);
-  friend const Position operator/(const Position& left, double right);
+  friend Position operator*(const Position& left, double right);
+  friend Position operator*(double left, const Position& right);
+  friend Position operator/(const Position& left, double right);
   // printing
   friend std::ostream& operator<<(std::ostream& os, const Position& p);
 

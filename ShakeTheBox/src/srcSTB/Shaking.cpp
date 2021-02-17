@@ -4,13 +4,16 @@
 #include <Shaking.h>
 #include "NumDataIO.h"
 
+#include <fstream>
+
 using namespace std;
 
 
 
 // constructors
-Shaking::Shaking(int Ncams, int ignoredCam, OTF& otfcalib, int NpixW, int NpixH, int Psize, double corrsize, Position p, deque<Camera> camparam, deque<int**>& residual, double I) :
-	ncams(Ncams), ignoreCam(ignoredCam), Npixw(NpixW), Npixh(NpixH), psize(Psize), corrSize(corrsize), pos3Dold(p), camParam(camparam), OTFcalib(otfcalib), pixels_Res(residual), int3D(I) {
+Shaking::Shaking(int Ncams, int ignoredCam, OTF& otfcalib, int NpixW, int NpixH, int Psize, double corrsize, Position p,
+	deque<Camera> camparam, deque<int**>& residual, double I, int outerLoopIndex, int innerLoopIndex) :
+	ncams(Ncams), ignoreCam(ignoredCam), Npixw(NpixW), Npixh(NpixH), psize(Psize), corrSize(corrsize), pos3Dold(p), camParam(camparam), OTFcalib(otfcalib), pixels_Res(residual), int3D(I), m_shakeLimX(false), m_shakeLimY(false), m_shakeLimZ(false) {
 
 	// Particle augmented reprojection (for all cameras)
 	if (ignoreCam < ncams) {	rcams = ncams-1;	}
@@ -55,11 +58,11 @@ Shaking::Shaking(int Ncams, int ignoredCam, OTF& otfcalib, int NpixW, int NpixH,
 //					int X = x - pRangeOld[id].xmin1; int Y = y - pRangeOld[id].ymin1;
 					for (int x = pRangeOld[id].xmin2; x < pRangeOld[id].xmax2; x++) {
 						for (int y = pRangeOld[id].ymin2; y < pRangeOld[id].ymax2; y++) {
-					int X = x - pRangeOld[id].xmin2; int Y = y - pRangeOld[id].ymin2;
-					pixels_Part[id][Y][X] = round(PartReproj(pos2Dold[id], otfParamold, x, y));
-				}
-			}
-			id++;
+							int X = x - pRangeOld[id].xmin2; int Y = y - pRangeOld[id].ymin2;
+							pixels_Part[id][Y][X] = round(PartReproj(pos2Dold[id], otfParamold, x, y));
+						}
+					}
+					id++;
 		}
 	}
 
@@ -71,29 +74,99 @@ Shaking::Shaking(int Ncams, int ignoredCam, OTF& otfcalib, int NpixW, int NpixH,
 			id++;
 		}
 	}
-	
-	// output the residual image
-//	NumDataIO<int> image_output;
-//	string save_path;
-//	for (int n = 0; n < ncams; n++) {
-//		save_path = "/home/sut210/Documents/Experiment/EXP6/Augresimg" + to_string(n) +".txt";
-//		image_output.SetFilePath(save_path);
-//		image_output.SetTotalNumber(Npixh * Npixw);
-//		int* pixel_array = new int[Npixh * Npixw];
-//		for (int i = 0; i < Npixh; i++)
-//			for (int j = 0; j < Npixw; j++)
-//				pixel_array[i * Npixw + j] = pixels_PartAugRes[n][i][j];
-//		image_output.WriteData(pixel_array);
-//	}
+
+	//{
+	//	pos3Dnew = Position(pos3Dold.X(), pos3Dold.Y() + 0.1, pos3Dold.Z()/*0.058*/);
+	//	pair< deque<PixelRange>, deque<Position> > pOld = PixRange(pos3Dnew);
+	//	pRangeOld = pOld.first; pos2Dold = pOld.second;
+
+	//	// creating a particle reproj image (I_p) matrix in the pixel range
+	//	int id = 0;
+	//	for (int camID = 0; camID < ncams; camID++) {
+	//		if (camID != ignoreCam) {
+	//			// OTF parameters at old 3D position
+	//			otfParamold = OTFcalib.OTFgrid(camID, pos3Dnew);
+	//			//			for (int x = pRangeOld[id].xmin1; x < pRangeOld[id].xmax1; x++) {
+	//			//				for (int y = pRangeOld[id].ymin1; y < pRangeOld[id].ymax1; y++) {
+	//			//					int X = x - pRangeOld[id].xmin1; int Y = y - pRangeOld[id].ymin1;
+	//			for (int x = pRangeOld[id].xmin2; x < pRangeOld[id].xmax2; x++) {
+	//				for (int y = pRangeOld[id].ymin2; y < pRangeOld[id].ymax2; y++) {
+	//					int X = x - pRangeOld[id].xmin2; int Y = y - pRangeOld[id].ymin2;
+	//					pixels_PartAugRes[id][Y][X] = round(PartReproj(pos2Dold[id], otfParamold, x, y));
+	//				}
+	//			}
+	//			id++;
+	//		}
+	//	}
+	//}
+	//
+
+#ifdef SAVE_INTERMEDIATE_SHAKES
+//	if ( 1 == outerLoopIndex && 3 == innerLoopIndex )
+	{
+		// output the residual image
+		NumDataIO<int> image_output;
+		string save_path, save_path2;
+		for (int n = 0; n < ncams; n++) {
+			save_path = "D:\\Users\\Mike\\ShakeTheBox-master\\TR_ppp_0_120\\Tracks\\Augresimg" + to_string(n) + ".txt";
+			save_path2 = "D:\\Users\\Mike\\ShakeTheBox-master\\TR_ppp_0_120\\Tracks\\Part" + to_string(n) + ".txt";
+			image_output.SetFilePath(save_path);
+			image_output.SetTotalNumber(4 * psize * psize);
+			int* pixel_array = new int[4 * psize * psize];
+			for (int i = 0; i < 2 * psize; i++)
+				for (int j = 0; j < 2 * psize; j++)
+					pixel_array[i * 2 * psize + j] = pixels_PartAugRes[n][i][j];
+			image_output.WriteData(pixel_array);
+			image_output.SetFilePath(save_path2);
+			for (int i = 0; i < 2 * psize; i++)
+				for (int j = 0; j < 2 * psize; j++)
+					pixel_array[i * 2 * psize + j] = pixels_Part[n][i][j];
+			image_output.WriteData(pixel_array);
+			delete[] pixel_array;
+		}
+	}
+#endif
 
 	//updating the particle position and intensity
 	Pos();
+
+	//if (fabs(pos3Dold.Z() - pos3Dnew.Z() - 0.005) < 0.00001) 
+	//{
+	//	cout << "!\n";
+	//}
+
+	//ofstream f("D:\\Users\\Mike\\ShakeTheBox-master\\TR_ppp_0_025\\Tracks\\testShake.dat", ios::app);
+	//f << pos3Dold.X() - pos3Dnew.X() << "\t" << pos3Dold.Y() - pos3Dnew.Y() << "\t" << pos3Dold.Z() - pos3Dnew.Z() << endl;
+
 	// pixel range on the cameras around the updated particle centers
 	pair< deque<PixelRange>, deque<Position> > pNew = PixRange(pos3Dnew);
 	pRangeNew = pNew.first; pos2Dnew = pNew.second;
 
 	// updating the 3D intensity
 	Int();
+}
+
+void Shaking::PosGrad()
+{
+	pos3Dnew = pos3Dold;
+	double step = corrSize;
+	for (size_t i = 0; i < 10; ++i)
+	{
+		Position d;
+		double current = Res(pos3Dnew);
+		double dx = Res(pos3Dnew + Position(step, 0, 0)) - current;
+		double dy = Res(pos3Dnew + Position(0, step, 0)) - current;
+		double dz = Res(pos3Dnew + Position(0, 0, step)) - current;
+		double m = std::max(std::fabs(dx), std::max(std::fabs(dy), std::fabs(dz)));
+		if (m > 0)
+		{
+			dx /= m;
+			dy /= m;
+			dz /= m;
+			pos3Dnew -= Position(step * dx, step * dy, step * dz);
+		}
+		step *= 2./3.;
+	}
 }
 
 // updates the 3D position by shaking
@@ -128,8 +201,10 @@ void Shaking::Pos() {
 		size = 4; 
 		pos3Dnew.Set_X(X[3]); R[3] = Res(pos3Dnew); // calulating the actual residual at minima
 	}
-	else
+	else {
 		size = 3;
+		m_shakeLimX = true;
+	}
 
 	int x3D = IndexofSmallestElement(R, size); pos3Dnew.Set_X(X[x3D]);	// setting X to the position with smallest residual
 
@@ -148,14 +223,17 @@ void Shaking::Pos() {
 		size = 4; 
 		pos3Dnew.Set_Y(Y[3]); R[3] = Res(pos3Dnew); // calulating the actual residual at minima
 	}
-	else
+	else {
 		size = 3;
+		m_shakeLimY = true;
+	}
+
 	int y3D = IndexofSmallestElement(R, size); pos3Dnew.Set_Y(Y[y3D]);
 	
 															// then update Z
 
 	for (int i = 0; i < 3; i++) {
-		Z[i] = (pos3Dold).Z() + del[i];
+		Z[i] = (pos3Dold).Z() + 2 * del[i]; //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! put 2 times larger step as Z has higher spread, than X and Y
 		pos3Dnew.Set_Z(Z[i]);
 		R[i] = Res(pos3Dnew);
 	}
@@ -167,8 +245,10 @@ void Shaking::Pos() {
 		size = 4; 
 		pos3Dnew.Set_Z(Z[3]); R[3] = Res(pos3Dnew); // calulating the actual residual at minima
 	}
-	else
+	else {
 		size = 3;
+		m_shakeLimZ = true;
+	}
 	int z3D = IndexofSmallestElement(R, size); pos3Dnew.Set_Z(Z[z3D]);
 }
 
@@ -194,22 +274,16 @@ double Shaking::Res(Position posnew) {
 			//	pixels_partaugres = new int[num];
 			//	part_proj= new int[num];
 			//}
-			pair< deque<PixelRange>, deque<Position> > pNew = PixRange(posnew);
-			deque<PixelRange> pNew_range = pNew.first;
+
 
 			// Calculating the residual for updated 3D position
 			for (int x = pRangeOld[id].xmin2; x < pRangeOld[id].xmax2; x++) {
 				for (int y = pRangeOld[id].ymin2; y < pRangeOld[id].ymax2; y++) {
+					int X = x - pRangeOld[id].xmin2, Y = y - pRangeOld[id].ymin2;
 //			for (int x = pRangeOld[id].xmin1; x < pRangeOld[id].xmax1; x++) {
 //				for (int y = pRangeOld[id].ymin1; y < pRangeOld[id].ymax1; y++) {
-//			for (int x = pNew_range[id].xmin1; x < pNew_range[id].xmax1; x++) {
-//				for (int y = pNew_range[id].ymin1; y < pNew_range[id].ymax1; y++) {
-					int X = x - pRangeOld[id].xmin2, Y = y - pRangeOld[id].ymin2;
-					if (Y < 2 * psize && Y >= 0 && X < 2 * psize && X >= 0) {
-						R = R + pow((pixels_PartAugRes[id][Y][X] - round(PartReproj(particle2Dnew[id], otfParamnew, x, y))), 2);
-					} else {
-						R = R + pow((pixels_Res[id][y][x] - round(PartReproj(particle2Dnew[id], otfParamnew, x, y))), 2);
-					}
+//					int X = x - pRangeOld[id].xmin1, Y = y - pRangeOld[id].ymin1;
+					R += pow(pixels_PartAugRes[id][Y][X] - PartReproj(particle2Dnew[id], otfParamnew, x, y), 2);
 					//pixels_partaugres[X * (pRangeOld[id].ymax2 - pRangeOld[id].ymin2) + Y] = pixels_PartAugRes[id][Y][X];
 					//part_proj[X * (pRangeOld[id].ymax2 - pRangeOld[id].ymin2) + Y] = round(PartReproj(particle2Dnew[id], otfParamnew, x, y));
 				}
@@ -240,10 +314,10 @@ pair< deque<Shaking::PixelRange>, deque<Position> > Shaking::PixRange(Position p
 			Position p(camParam[camID].WorldToImage(pos)); p.Set_Z(0);
 			pos2D.push_back(camParam[camID].Distort(p));
 			// pixel range for each particle with 1 x particle size and 2 x particle size
-			int xmin1 = max(1, (int)floor(pos2D[id].X() - psize / 2));	 int xmin2 = max(1, (int)floor(xmin1 - psize / 2));
-			int ymin1 = max(1, (int)floor(pos2D[id].Y() - psize / 2));	 int ymin2 = max(1, (int)floor(ymin1 - psize / 2));
-			int xmax1 = min(Npixw, (int)floor(pos2D[id].X() + psize / 2)); int xmax2 = min(Npixw, (int)ceil(xmax1 + psize / 2));
-			int ymax1 = min(Npixh, (int)floor(pos2D[id].Y() + psize / 2)); int ymax2 = min(Npixh, (int)ceil(ymax1 + psize / 2));
+			int xmin1 = max(1, (int)floor(pos2D[id].X() - psize / 2 + 1));	 int xmin2 = max(1, (int)floor(xmin1 - psize / 2));
+			int ymin1 = max(1, (int)floor(pos2D[id].Y() - psize / 2 + 1));	 int ymin2 = max(1, (int)floor(ymin1 - psize / 2));
+			int xmax1 = min(Npixw, (int)floor(pos2D[id].X() + psize / 2 + 1)); int xmax2 = min(Npixw, (int)ceil(xmax1 + psize / 2));
+			int ymax1 = min(Npixh, (int)floor(pos2D[id].Y() + psize / 2 + 1)); int ymax2 = min(Npixh, (int)ceil(ymax1 + psize / 2));
 //			int xmin1 = max(1, (int)floor(pos2D[id].X() - psize / 4));	 int xmin2 = max(1, (int)floor(xmin1 - psize / 4));
 //			int ymin1 = max(1, (int)floor(pos2D[id].Y() - psize / 4));	 int ymin2 = max(1, (int)floor(ymin1 - psize / 4));
 //			int xmax1 = min(Npixw, (int)floor(pos2D[id].X() + psize / 4)); int xmax2 = min(Npixw, (int)ceil(xmax1 + psize / 4));
@@ -277,14 +351,14 @@ void Shaking::PartAugResImage(int camID, int id, PixelRange p) {
 	//}
 	for (int x = p.xmin2; x < p.xmax2; x++) {
 		for (int y = p.ymin2; y < p.ymax2; y++) {
-	int X = x - p.xmin2, Y = y - p.ymin2;
+			int X = x - p.xmin2, Y = y - p.ymin2;
 //	for (int x = p.xmin1; x < p.xmax1; x++) {
 //		for (int y = p.ymin1; y < p.ymax1; y++) {
 //			int X = x - p.xmin1, Y = y - p.ymin1;
 //			cout<<x<<","<<y<<",";
 //			cout<<pixels_Res[camID][y][x]<<",";
 //			cout<<pixels_Part[id][Y][X]<<",";
-			pixels_PartAugRes[id][Y][X] = max(0,min(255,pixels_Res[camID][y][x] + pixels_Part[id][Y][X]));
+			pixels_PartAugRes[id][Y][X] = max(0,min(65535,pixels_Res[camID][y][x] + pixels_Part[id][Y][X]));
 //			particle_res[X * (p.ymax2 - p.ymin2) + Y] = pixels_Res[camID][y][x];
 //			part_proj[X * (p.ymax2 - p.ymin2) + Y] = pixels_Part[id][Y][X];
 //			cout<<pixels_PartAugRes[i[X * (p.ymax2 - p.ymin2) + Y]d][Y][X]<<endl;
@@ -318,7 +392,6 @@ deque<double> Shaking::Quadratic(deque<double> X, deque<double> R) {
 void Shaking::Int() {
 	double num = 0.0, denum = 0.0;
 	int id = 0;
-	int* cam_ID = new int[rcams];
 	double* peakIntensity = new double[rcams];
 	for (int i = 0; i < rcams; i++)
 		peakIntensity[i] = 0.0;
@@ -328,20 +401,14 @@ void Shaking::Int() {
 	// finding the camera with highest local peak intensity
 	for (int camID = 0; camID < ncams; camID++) {
 		if (camID != ignoreCam) {
-			cam_ID[id] = camID;
 			otfparam.push_back(OTFcalib.OTFgrid(camID, pos3Dnew));
 			int xmin = max(pRangeOld[id].xmin1, pRangeNew[id].xmin1), xmax = min(pRangeNew[id].xmax1, pRangeOld[id].xmax1);
 			int ymin = max(pRangeOld[id].ymin1, pRangeNew[id].ymin1), ymax = min(pRangeNew[id].ymax1, pRangeOld[id].ymax1);
 			for (int x = xmin; x < xmax; x++) {
 				for (int y = ymin; y < ymax; y++) {
 					int X = x - pRangeOld[id].xmin2, Y = y - pRangeOld[id].ymin2;
-
 //					int X = x - pRangeOld[id].xmin1, Y = y - pRangeOld[id].ymin1;
-//					peakIntensity[id] = max(peakIntensity[id], PartReproj(pos2Dnew[id], otfparam[id], x, y));
-//					if (x < 1 || x > Npixw || y < 1 || y > Npixh) continue;
-					if (Y < 2 * psize && Y >= 0 && X < 2 * psize && X >= 0) {
-						peakIntensity[id] = max(peakIntensity[id], (double)pixels_PartAugRes[id][Y][X]);
-					}
+					peakIntensity[id] = max(peakIntensity[id], PartReproj(pos2Dnew[id], otfparam[id], x, y));
 				}
 			}
 			id++;
@@ -359,18 +426,17 @@ void Shaking::Int() {
 //			int ymin = max(pRangeOld[ID].ymin1, pRangeNew[ID].ymin1), ymax = min(pRangeNew[ID].ymax1, pRangeOld[ID].ymax1);
 			int xmin = pRangeNew[ID].xmin1, xmax = pRangeNew[ID].xmax1;
 			int ymin = pRangeNew[ID].ymin1, ymax = pRangeNew[ID].ymax1;
-
 			for (int x = xmin; x < xmax; x++) {
 				for (int y = ymin; y < ymax; y++) {
 					int X = x - pRangeOld[ID].xmin2, Y = y - pRangeOld[ID].ymin2;
 //					int X = x - pRangeOld[ID].xmin1, Y = y - pRangeOld[ID].ymin1;
 //					int X = x - xmin, Y = y - ymin;
-					if (Y < 2 * psize && Y >= 0 && X < 2 * psize && X >= 0) { // the range of calculated PartAugRes
+					if (Y < 2 * psize && Y >= 0 && X < 2 * psize && X >= 0) {
 //					if (Y < psize && Y >= 0 && X < psize && X >= 0) {
 						num = num + pixels_PartAugRes[ID][Y][X];
 //						num_single = num_single + pixels_PartAugRes[ID][Y][X];
 					} else {
-						num = num + pixels_Res[cam_ID[ID]][y][x];
+						num = num + pixels_Res[ID][y][x];
 //						num_single = num_single + pixels_PartAugRes[ID][Y][X];
 					}
 					int pixel_proj = round(PartReproj(pos2Dnew[ID], otfparam[ID], x, y));
@@ -400,39 +466,7 @@ void Shaking::Int() {
 	}
 
 
-	// For reduced camera, if the particles are within the image, then add the intensity
-	if (ignoreCam < ncams) {
-		Position p(camParam[ignoreCam].WorldToImage(pos3Dnew)); p.Set_Z(0);
-		Position pos2D_reducedcam = camParam[ignoreCam].Distort(p);
-		// pixel range for each particle with 1 x particle size
-		int xmin1 = (int)floor(pos2D_reducedcam.X() - psize / 2);
-		//int xmin1 = max(1, (int)floor(pos2D_reducedcam.X() - psize / 2));
-		int ymin1 = (int)floor(pos2D_reducedcam.Y() - psize / 2);
-		//int ymin1 = max(1, (int)floor(pos2D_reducedcam.Y() - psize / 2));
-		int xmax1 = (int)floor(pos2D_reducedcam.X() + psize / 2);
-//		int xmax1 = min(Npixw, (int)floor(pos2D_reducedcam.X() + psize / 2));
-		int ymax1 = (int)floor(pos2D_reducedcam.Y() + psize / 2);
-//		int ymax1 = min(Npixh, (int)floor(pos2D_reducedcam.Y() + psize / 2));
-
-//		if (xmin1 < Npixw && xmax1 > 1 && ymin1 < Npixh && ymax1 > 1 &&
-//				pos2D_reducedcam.X() > 1 && pos2D_reducedcam.X() < Npixw &&
-//				pos2D_reducedcam.Y() > 1 && pos2D_reducedcam.Y() < Npixh) {
-		if (xmin1 > 1 && xmin1 < Npixw - psize  && xmax1 > psize && xmax1 < Npixw &&
-				ymin1 > 1 && ymin1 < Npixh - psize  && ymax1 > psize && ymax1 < Npixh) {
-			for (int x = xmin1; x < xmax1; x++) {
-				for (int y = ymin1; y < ymax1; y++) {
-					num = num + pixels_Res[ignoreCam][y][x];  // the residual for ignorecam is stored at the last.
-					vector<double> OTFparam = OTFcalib.OTFgrid(ignoreCam, pos3Dnew);
-					int pixel_proj = round(PartReproj(pos2D_reducedcam, OTFparam, x, y));
-					denum = denum + pixel_proj;
-				}
-			}
-		}
-
-	}
-
 	delete[] peakIntensity;
-	delete[] cam_ID;
 	//cout << ignore << "," << num << "," << denum << endl;
 //	if (int3D == 0) int3D = 1;
 	int3D = int3D * sqrt(abs(num / denum));// * ratio;

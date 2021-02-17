@@ -74,6 +74,7 @@ public:
 
 	// function to find particles around the intersection point of 2 projected lines
 	void ParticleFinder2to1(int camID, int rID, int camid1, int camid2, Position P1world, Position P2world, double mindist_1D, vector<Frame::const_iterator>& tmplist);
+	void ParticleFinder2to1_(int camID, int rID, int camid1, int camid2, Position P1world, Position P2world, double mindist_1D, vector<Frame::const_iterator>& tmplist, Position P1img, Position P2img);
 	// functions to check if particle candidates are actual potential candidates
 	bool ParticleCheck2to1(int camid0, int camid1, int camid2, Position P1world, Position P2world, Frame::const_iterator pA, double mindist_1D);
 	bool ParticleCheck1to1(int camid0, int camid1, Position P0world, Frame::const_iterator P1, double mindist_2D);
@@ -110,6 +111,7 @@ private:
 
 	// create a 3D world position from multiple positions on image planes
 	std::pair<double,Position> WorldPosition(std::deque<Position> ipos, int ignoreCam) throw(std::runtime_error);
+	bool checkMindist3DforMemOpt(deque<Position> ipos);
 
 	int GroupAndPickMin( deque<double>& raydists, deque< deque<int> >& frame_index, int* buffer,
 		 int num_particle, int num_match, int camera_num);

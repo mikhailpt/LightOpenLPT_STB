@@ -9,6 +9,8 @@
 #include "NumDataIO.h"
 #include "Common.h"
 
+#include <numeric>
+
 #define ALL_CAMS 100
 #define REDUCED_CAMS 0
 #define STBflag true
@@ -22,9 +24,9 @@ using namespace std;
 
 STB::STB(int firstFrame, int lastFrame, string pfieldfile, string iprfile, int ncams, deque<int> camIDs, 
 	deque<string> imageNameFiles, double initialRadius, double avgDist, double expShift, double masc, 
-	double mrsc, double fpt, double lowerInt, bool iprFlag) : 
+	double mrsc, double fpt, double lowerInt, bool iprFlag, string prjPath) :
 
-	first(firstFrame), last(lastFrame), iprfile(iprfile), _ipr(iprfile, ncams), pfieldfile(pfieldfile), ncams(ncams), camID(camIDs),
+	first(firstFrame), last(lastFrame), iprfile(iprfile), _ipr(iprfile, ncams, prjPath), pfieldfile(pfieldfile), ncams(ncams), camID(camIDs),
 	imgNameFiles(imageNameFiles), searchRadiusSTB(initialRadius), avgIPDist(avgDist), largestShift(expShift), maxAbsShiftChange(masc), 
 	maxRelShiftChange(mrsc/100), iprFlag(iprFlag), OTFcalib(ncams, _ipr.otfFile), fpt(fpt), intensityLower(lowerInt)
 { 
@@ -78,11 +80,12 @@ STB::STB(int firstFrame, int lastFrame, string pfieldfile, string iprfile, int n
 			LoadAllTracks(address, to_string(firstFrame + 3), 0);
 		} else {
 			InitialPhase(pfieldfile);														// Initial phase: obtaining tracks for first 4 time steps
+			mySaveTrackToTXT(activeLongTracks, address + "ActiveLongTracks" + to_string(firstFrame + 3));
 			MatTracksSave(address, to_string(firstFrame + 3), 0);
 		}
 	}
 
-
+	//cin.get();
 
 	clock_t start0;
 	start0 = clock();
@@ -120,27 +123,24 @@ STB::STB(int firstFrame, int lastFrame, string pfieldfile, string iprfile, int n
 
 // Initial Phase: for the first 'n = 4' frames, using predictive field for tracking
 void STB::InitialPhase(string pfieldfile) {
+
 	int endFrame = last+1;
 	if (!(_ipr.triangulationOnly) && !(_ipr.IPROnly)) 
 		endFrame = (last >= first + 4) ? first + 4 : last+1;
 
-
-		for (int frame = first; frame < endFrame; ++frame) {											// ipr on first 4 frames
-			std::cout << "IPR on frame " << frame << " of " << last << endl;
-
-//			if (iprFlag || _ipr.triangulationOnly || _ipr.IPROnly) {									// getting 3D positions using ipr (or)
-			if (iprFlag && debug_mode != SKIP_IPR) {
-				Frame all(_ipr.FindPos3D(imgSequence,frame));
-				iprMatched.push_back(all);
-//				string IPR_save_path = tiffaddress + "/Tracks/IPRcandidates/" + to_string(frame) +".txt";
-//				_ipr.SaveParticlePositions(all.Get_PosDeque(), IPR_save_path);
-			}
+	for (int frame = first; frame < endFrame; ++frame) {											// ipr on first 4 frames
+		std::cout << "IPR on frame " << frame << " of " << last << endl;
 																
-			else {																						// getting 3D positions from .mat files
-				string pos3D = "pos3Dframe" + to_string(frame);
-				iprMatched.push_back(Load_3Dpoints(pos3D));
-			}
+		if (iprFlag || _ipr.triangulationOnly || _ipr.IPROnly) {									// getting 3D positions using ipr (or)
+			Frame all(_ipr.FindPos3D(imgSequence,frame));
+			iprMatched.push_back(all);
 		}
+															
+		else {																						// getting 3D positions from .mat files
+			string pos3D = "pos3Dframe" + to_string(frame);
+			iprMatched.push_back(Load_3Dpoints(pos3D));
+		}
+	}
 																
 	if (!(_ipr.triangulationOnly) && !(_ipr.IPROnly)) {												// if the user chooses to run only triangulation or IPR, stop here
 																									// else,
@@ -151,19 +151,23 @@ void STB::InitialPhase(string pfieldfile) {
 			double start = clock();
 			PredictiveField pField;
 			// getting the predictive velocity field b/w the current and next frames
-//			string predict_file_path = tiffaddress + "PredictiveField" + to_string(currFrame - first) + "&"
-//												+ to_string(nextFrame - first) + ".txt";
-//			if (debug_mode == SKIP_PREDITIVE_FIELD) {
-//				pField.Load_field(predict_file_path);
-//				if (error == NO_FILE) {
-//					cout<<"Predictive file for frame"<<currFrame - first<<"&"<<nextFrame - first<<"can't be opened!"<<endl;
-//					goto PredictiveField;
-//				}
-//			} else {
-//				PredictiveField:
+			string predict_file_path = tiffaddress + "PredictiveField" + to_string(currFrame - first) + "&" + to_string(nextFrame - first) + ".dat";
+			if (false/*debug_mode == SKIP_PREDITIVE_FIELD*/){
+				//pField.Load_field(predict_file_path);
+				pField.myLoad_field(predict_file_path, pfieldfile);
+				if (error == NO_FILE) {
+					cout<<"Predictive file for frame"<<currFrame - first<<"&"<<nextFrame - first<<"can't be opened!"<<endl;
+					goto PredictiveField;
+				}
+			} else {
+				PredictiveField:
 				pField.GetPredictiveField(iprMatched[currFrame - first], iprMatched[nextFrame - first], pfieldfile, currFrame);	// either calulating it or from .mat files
-//				pField.SaveField(predict_file_path);
-//			}
+				pField.SaveField(predict_file_path + "_beforeFilt");
+#ifndef USE_KRIGING_INTERPOLATOR
+				pField.ParticleFiltration();
+#endif
+				pField.SaveField(predict_file_path);
+			}
 			double duration = (clock() - start) / (double) CLOCKS_PER_SEC;
 			cout<<"time to get predictive field:"<< duration << endl;
 																									// extending all the tracks that are active in current frame
@@ -183,6 +187,27 @@ void STB::InitialPhase(string pfieldfile) {
 			StartTrack(currFrame, pField);															// starting a track for all particles left untracked in current frame
 			duration = (clock() - start) / (double) CLOCKS_PER_SEC;
 			cout<<"time to link particles in two frames:"<< duration<<endl;
+
+			// get stats for shorttracks
+			int num_shorttrack = activeShortTracks.size();
+
+			m_short1 = 0, m_short2 = 0, m_short3 = 0;
+			int short4 = 0;
+
+			for (unsigned int i = 0; i < num_shorttrack; ++i) {
+				deque<Track>::iterator tr = activeShortTracks.begin() + i;
+				if (tr->Length() == 1)
+					m_short1++;
+				else if (tr->Length() == 2)
+					m_short2++;
+				else if (tr->Length() == 3)
+					m_short3++;
+				else if (tr->Length() > 3)
+					short4++;
+			}
+
+			cout << "\t\tNo. of active Short tracks:	" << num_shorttrack << "(" << m_short1 << ", " << m_short2 << ", " << m_short3 << ", " << short4 << ")" << endl;
+			cout << "\t\tNo. of exited tracks:		" << exitTracks.size() << endl;
 		}
 																									// moving all tracks longer than 3 from activeShortTracks to activeLongTracks
 		for (deque<Track>::iterator tr = activeShortTracks.begin(); tr != activeShortTracks.end(); ) {
@@ -201,9 +226,24 @@ void STB::InitialPhase(string pfieldfile) {
 			}
 		}
 
+		// get stats for shorttracks
+		int num_shorttrack = activeShortTracks.size();
+
+		m_short1 = 0, m_short2 = 0, m_short3 = 0;
+
+		for (unsigned int i = 0; i < num_shorttrack; ++i) {
+			deque<Track>::iterator tr = activeShortTracks.begin() + i;
+			if (tr->Length() == 1)
+				m_short1++;
+			else if (tr->Length() == 2)
+				m_short2++;
+			else if (tr->Length() == 3)
+				m_short3++;
+		}
+
 		cout << "Done with initial phase" << endl << endl;
 
-		cout << "\t\tNo. of active Short tracks:	" << activeShortTracks.size() << endl;
+		cout << "\t\tNo. of active Short tracks:	" << num_shorttrack << "(" << m_short1 << ", " << m_short2 << ", " << m_short3 << ")" << endl;
 		cout << "\t\tNo. of active Long tracks:	" << activeLongTracks.size() << endl;
 		cout << "\t\tNo. of exited tracks:		" << exitTracks.size() << endl;
 //		cout << "\t\tNo. of inactive tracks:		" << inactiveTracks.size() << endl;
@@ -215,9 +255,14 @@ void STB::ConvergencePhase() {
 	int endFrame = last;
 
 	Calibration calib(_ipr.calibfile, ALL_CAMS, _ipr.mindist_2D, _ipr.mindist_3D, ncams);
+	
+	ofstream log_file;
+	int Mode = debug_mode == SKIP_PREVIOUS_TRACKS ? ios_base::app : ios_base::out;
+	log_file.open(tiffaddress + "Tracks/stats.txt", Mode);
 
 	for (int currFrame = first + 3; currFrame < endFrame; currFrame++) {							// tracking frame by frame using Wiener / polynomial predictor along with shaking
 		string address = tiffaddress + "Tracks/ConvergedTracks/";
+		
 		if (debug_mode == SKIP_PREVIOUS_TRACKS && currFrame < debug_frame_number ) {
 			if (currFrame < debug_frame_number - 1) continue; // skip those previous frame
 				LoadAllTracks(address, to_string(debug_frame_number), 0);
@@ -253,6 +298,10 @@ void STB::ConvergencePhase() {
 			Tiff2DFinder t(ncams, _ipr.Get_threshold(), imgNames);
 			t.FillPixels(pixels_orig);																	// filled pixels_orig with the px of actual camera images, which will be used for shaking
 
+#ifdef TEST_PARTICLES_GENERATION
+			//Replacing pixels_orig
+			_ipr.TestParticleGeneration(pixels_orig);
+#endif // TEST_PARTICLES_GENERATION
 
 	// PREDICTION
 			cout << "\t\t\tPrediction: ";
@@ -270,6 +319,7 @@ void STB::ConvergencePhase() {
 
 
 	// SHAKING THE PREDICTIONS
+			cout << "\t\t\tShaking:\n";
 			start =std::chrono::system_clock::now();
 			Shake(estPos, estInt);																		// correcting the predicted positions by shaking, removing wrong / ambiguous predictions and updating the residual images
 			cout<<"Shaking  time:"<<std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - start) .count()<< "s" << endl;
@@ -281,8 +331,18 @@ void STB::ConvergencePhase() {
 			//	_ipr.MatfileImage(pixels_orig, tiffaddress + "resImg" + to_string(nextFrame));
 	// END TESTING
 
-			for (int i = 0; i < estPos.NumParticles(); i++) 											// adding the corrected particle position in nextFrame to its respective track
+			for (int i = 0; i < estPos.NumParticles(); i++) {											// adding the corrected particle position in nextFrame to its respective track
 				activeLongTracks[i].AddNext(estPos[i], nextFrame);
+				activeLongTracks[i].SetPredictedPos(tempPredictions[i]);
+			}
+
+			//check activeLongTracks
+			unsigned int num_longtrack = activeLongTracks.size();
+			int badTracksCounter = 0;
+			for (int i = 0; i < num_longtrack; ++i)
+				if (!CheckLinearFit(activeLongTracks[i])) ++badTracksCounter;
+
+			cout << "badTracksCounter = " << badTracksCounter << "\n";
 
 //			start3 = clock();
 //			cout << "Done (" << (clock() - start2)/(double) CLOCKS_PER_SEC << "s)" << endl << "\t\t\tShort tracks from residuals: ";
@@ -291,7 +351,7 @@ void STB::ConvergencePhase() {
 
 //			NumDataIO<int> data_io;
 //			for (int n = 0; n < ncams; n++) {
-//				data_io.SetFilePath("/home/tanshiyong/Documents/Data/SinglePhase/SD78500/Residual_image_code/cam" + to_string(n) + "/frame" + to_string(nextFrame) + ".txt");
+//				data_io.SetFilePath("/home/tanshiyong/Documents/Data/Single-Phase/SD50000/Residual_image_code/cam" + to_string(n) + "/frame" + to_string(nextFrame) + ".txt");
 //				int* pixel_vector = new int[Npixh * Npixw];
 //				for (int i = 0; i < Npixh; i++)
 //					for (int j = 0; j < Npixw; j++) {
@@ -304,7 +364,7 @@ void STB::ConvergencePhase() {
 
 //			NumDataIO<int> data_io;
 //			for (int n = 0; n < ncams; n++) {
-//				data_io.SetFilePath("/home/tanshiyong/Documents/Data/SinglePhase/SD78500//Residual_image_code/cam" + to_string(n+1) + "/frame" + to_string(nextFrame) + ".txt");
+//				data_io.SetFilePath("/home/tanshiyong/Documents/Data/Single-Phase/SD50000/Residual_image_code/cam" + to_string(n+1) + "/frame" + to_string(nextFrame) + ".txt");
 //				int* pixel_vector = new int[Npixh * Npixw];
 //				for (int i = 0; i < Npixh; i++)
 //					for (int j = 0; j < Npixw; j++) {
@@ -320,12 +380,13 @@ void STB::ConvergencePhase() {
 			start =std::chrono::system_clock::now();
 			_ipr.SetFrameNumber(currFrame + 1);  // frame number is used for debug.
 			_ipr.DoingSTB(true);  // to indicate the IPR is called by STB.
-			Frame candidates = IPRonResidual(calib, t, pixels_orig, pixels_reproj, pixels_res, estPos);	// applying ipr on residual images to obtain particle candidates
+			Frame candidates;
+			candidates = IPRonResidual(calib, t, pixels_orig, pixels_reproj, pixels_res, estPos);	// applying ipr on residual images to obtain particle candidates
+			//candidates = Load_3Dpoints("pos3Dresframe" + to_string(nextFrame));
 			cout<<"IPR time:"<<std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - start) .count() << "s" << endl;
 			cout<<"Total particles:" << candidates.NumParticles()<<endl;
+			int total = candidates.NumParticles();
 
-//			string IPR_save_path = tiffaddress + "/Tracks/IPRcandidates/" + to_string(currFrame + 1) +".txt";
-//			_ipr.SaveParticlePositions(candidates.Get_PosDeque(), IPR_save_path);
 
 //			NumDataIO<double> data_io;
 //			double* pos_vec = new double[candidates.NumParticles() * 3];
@@ -340,7 +401,7 @@ void STB::ConvergencePhase() {
 
 	// TESTING IPR AND TRACKING FROM RESIDUALS
 //			if (nextFrame % 100 == 97 || nextFrame % 100 == 98 || nextFrame % 100 == 99 || nextFrame % 100 == 0)
-//				_ipr.SaveParticlePositions(candidates.Get_PosDeque(), tiffaddress + "pos3Dresframe" + to_string(nextFrame));
+//				_ipr.SaveParticlePositions(candidates.Get_PosDeque(), tiffaddress + "Tracks\\pos3Dresframe" + to_string(nextFrame) + ".txt");
 	// END TESTING
 			start  = std::chrono::system_clock::now();
 
@@ -357,36 +418,74 @@ void STB::ConvergencePhase() {
 			unsigned int num_candidate = candidates.NumParticles();
 			bool* candidate_used = new bool[num_candidate];			// Vector to label the candidate points that are used and need to be deleted.
 			for (unsigned int i = 0; i < num_candidate; ++i) candidate_used[i] = false;
+			int* linkType = new int[num_shorttrack];
 #pragma omp parallel
 			{
 #pragma omp for
-			for (int i = 0; i < num_shorttrack; ++i) {
-				deque<Track>::iterator tr = activeShortTracks.begin() + i;
-				bool erase = false;
-				MakeShortLinkResidual(nextFrame, candidates, tr, 5, &erase, candidate_used);  // erase and candidate_used are updated for every loop
-				erase_vector[i] = erase;
+				for (int i = 0; i < num_shorttrack; ++i) {
+					deque<Track>::iterator tr = activeShortTracks.begin() + i;
+					bool erase = false;
+					linkType[i] = 0;
+					MakeShortLinkResidual(nextFrame, candidates, tr, 5, &erase, candidate_used, &linkType[i]);  // erase and candidate_used are updated for every loop
+					erase_vector[i] = erase;
+				}
 			}
+			int velLink = 0;
+			int velNNLink = 0;
+			int NNLink = 0;
+			for (unsigned int i = 0; i < num_shorttrack; ++i) {
+				int type = linkType[i];
+				switch (type)
+				{
+				case 1:
+					velLink++;
+					break;
+				case 2:
+					velNNLink++;
+					break;
+				case 3:
+					NNLink++;
+				}
+				if (erase_vector[i]) { 
+					deque<Track>::iterator tr = activeShortTracks.begin() + i;
+					if (tr->Length() > 3) {																	// and if the track has at least 4 particles
+						inactiveTracks.push_back(*tr);														// add it to inactive tracks
+						a_is++;
+					}
+					if (tr->Length() == 1)
+						s_as1++;
+					else if (tr->Length() == 2)
+						s_as2++;
+					else if (tr->Length() == 3)
+						s_as3++;
+				}
 			}
+			cout << "MakeShortLinkResidual stats: velLink = " << velLink << " velNNLink = " << velNNLink << " NNLink = " << NNLink << " and notLinked = " << num_shorttrack - velLink - velNNLink - NNLink << " of " << num_shorttrack << "\n";
 
 			// Delete labeled tracks
 			int shift = 0;
+			std::deque<Track> tmp;
 			for (int i = 0; i < num_shorttrack; ++i) {
 				deque<Track>::iterator tr = activeShortTracks.begin();
-				if (erase_vector[i]) {
-					activeShortTracks.erase(tr + i - shift);
-					++ shift;
-				}
+				//if (erase_vector[i]) {
+				//	activeShortTracks.erase(tr + i - shift);
+				//	++shift;
+				//}
+				if (!erase_vector[i]) tmp.push_back(*(tr + i));
 			}
-			delete[] erase_vector;
-			// Delete labeled candidates
-			shift = 0;
-			for (int i = 0; i < num_candidate; ++i) {
-				if (candidate_used[i]) {
-					candidates.Delete(i - shift);
-					++ shift;
-				}
-			}
-			delete[] candidate_used;
+			activeShortTracks.swap(tmp);
+			delete [] erase_vector;
+
+			////// Delete labeled candidates
+			////shift = 0;
+			////for (int i = 0; i < num_candidate; ++i) {
+			////	if (candidate_used[i]) {
+			////		candidates.Delete(i - shift);
+			////		++ shift;
+			////	}
+			////}
+			delete [] candidate_used;
+
 //			for (deque<Track>::iterator tr = activeShortTracks.begin(); tr != activeShortTracks.end(); )
 //				MakeShortLinkResidual(nextFrame, candidates, tr, 5);
 			// END
@@ -412,7 +511,7 @@ void STB::ConvergencePhase() {
 			double thresh = 1.5 * largestShift;
 //			int p = 0;
 			int r1 =0, r2 = 0, r3 = 0, r4 = 0;
-			unsigned int num_longtrack = activeLongTracks.size();
+			num_longtrack = activeLongTracks.size();
 			erase_vector  = new bool[num_longtrack];
 			for (unsigned int i = 0; i < num_longtrack; ++i) erase_vector[i] = false;
 
@@ -454,49 +553,56 @@ void STB::ConvergencePhase() {
 //			}
 //			cout<<"Calculating dist map:"<<std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now()- start) .count() << "s" << endl;
 
-#pragma omp parallel
+//#pragma omp parallel
 			{
-#pragma omp for
-			for (unsigned int i = 0; i < num_longtrack; ++ i) {
-//				double d1 = pow(Distance(activeLongTracks[i].Last(), activeLongTracks[i].Penultimate()),0.5),
-//						d2 = pow(Distance(activeLongTracks[i].Penultimate(), activeLongTracks[i].Antepenultimate()),0.5);
-//				double threshRel = maxRelShiftChange * d2; //, length = activeLongTracks[i].Length();
-//				if (d1 > thresh) {
-//					erase_vector[i] = true;
-//					++ r1;
-//				}
-//				else if (fabs(d1 - d2) > maxAbsShiftChange || fabs(d1 - d2) > threshRel) {
-//					erase_vector[i] = true;
-//					++ r2;
-//				}
-//				if (!CheckVelocity(activeLongTracks[i])) {
-//					erase_vector[i] = true;
-//					++ r1;
-//				}
-				 if (!CheckLinearFit(activeLongTracks[i])) {
-					++ r3;
+//#pragma omp for
+			//for (unsigned int i = 0; i < num_longtrack; ++ i) {
+			for (int i = 0; i < num_longtrack; ++i) {
+				//double d1 = pow(Distance(activeLongTracks[i].Last(), activeLongTracks[i].Penultimate()),0.5),
+				//		d2 = pow(Distance(activeLongTracks[i].Penultimate(), activeLongTracks[i].Antepenultimate()),0.5);
+				//double threshRel = maxRelShiftChange * d2; //, length = activeLongTracks[i].Length();
+				//if (d1 > thresh) {
+				//	erase_vector[i] = true;
+				//	++ r1;
+				//}
+				//else if (fabs(d1 - d2) > maxAbsShiftChange || fabs(d1 - d2) > threshRel) {
+				//	erase_vector[i] = true;
+				//	++ r2;
+				//}
+				//if (!CheckVelocity(activeLongTracks[i])) {
+				//	erase_vector[i] = true;
+				//	++ r3;
+				//}
+				if (!CheckLinearFit(activeLongTracks[i])) {
+					//++ r4;
 					erase_vector[i] = true;
 				}
 			}
 			}
+
+			cout << "s_al before appllying filters for activeLongTracks = " << s_al << "\n";
+			cout << "a_is before appllying filters for activeLongTracks = " << a_is << "\n";
 
 			shift = 0;
 			for (unsigned int i = 0; i < num_longtrack; ++ i) {
 				deque<Track>::iterator tr = activeLongTracks.begin();
 				if (erase_vector[i]) {
 					if (activeLongTracks[i - shift].Length() >= 7) {
-						inactiveLongTracks.push_back(activeLongTracks[i]);
-						activeLongTracks.erase(tr + i - shift);
-						s_al++; a_il++;
-						++ shift;
+						inactiveLongTracks.push_back(activeLongTracks[i - shift]);
+						a_il++;
 					} else {
-						activeLongTracks.erase(tr + i - shift);
-						s_al++; a_is++;
-						++ shift;
+						// forget all these activeLongTracks forever
+						inactiveTracks.push_back(activeLongTracks[i - shift]);
+						a_is++;
 					}
+					activeLongTracks.erase(tr + i - shift);
+					s_al++;
+					++shift;
+					++r4;
 				}
 			}
 			delete[] erase_vector;
+			cout << "filtering stats: " << r1 << "+" << r2 << "+" << r3 << "+" << r4 << endl;
 
 //			for (deque<Track>::iterator tr = activeLongTracks.begin(); tr != activeLongTracks.end(); ) {
 ////				p ++;
@@ -583,15 +689,24 @@ void STB::ConvergencePhase() {
 
 //			cout << "Done (" << (clock() - start4) / (double) CLOCKS_PER_SEC << "s)" << endl;
 
-			cout << "\t\tNo. of active Short tracks:	" << c1 << " + " << a_as << " - (" << s_as1 << " + " << s_as2 << " + " << s_as3 << " + " << s_as4 << ") = " << activeShortTracks.size() << endl;
+			int old_short1 = m_short1;
+			int old_short2 = m_short2;
+			int old_short3 = m_short3;
+
+			m_short3 = m_short2 - s_as2;
+			m_short2 = m_short1 - s_as1;
+			m_short1 = a_as;
+
+			cout << "\t\tNo. of active Short tracks:	" << c1 << "(" << old_short1 << ", " << old_short2 << ", " << old_short3 << ")"
+				<< " + " << a_as << " - (" << s_as1 << " + " << s_as2 << " + " << s_as3 << " + " << s_as4 << ") = " << activeShortTracks.size() 
+				<< "(" << m_short1  << ", " << m_short2  << ", " << m_short3 << ")" << endl;
 			cout << "\t\tNo. of active Long tracks:	" << c2 << " + " << a_al << " - " << s_al << " = " << activeLongTracks.size() << endl;
-			cout << r1 << "+" << r2 << "+" << r3 << endl;
 			cout << "\t\tNo. of exited tracks:		 = " << exitTracks.size() << endl;
-//			cout << "\t\tNo. of inactive tracks:		" << c3 << " + " << a_is << " = " << inactiveTracks.size() << endl;
+			cout << "\t\tNo. of inactive tracks:		" << c3 << " + " << a_is << " = " << inactiveTracks.size() << endl;
 			cout << "\t\tNo. of inactive Long tracks:	" << c4 << " + " << a_il << " = " << inactiveLongTracks.size() << endl;
 
 //			cout << "\t\tTime taken for STB at frame " << nextFrame << ": " << (clock() - start0) / (double) CLOCKS_PER_SEC << "s" << endl;
-
+			log_file << currFrame << "\t" << total << "\t" << activeLongTracks.size() << "\t" << exitTracks.size() << "\t" << inactiveLongTracks.size() << "\t" << s_al << endl;
 
 
 			if (to_save_data) {
@@ -644,6 +759,10 @@ void STB::ConvergencePhase() {
 			}
 		}
 	}
+
+	log_file.close();
+
+
 }
 
 // a function to start a track
@@ -674,18 +793,20 @@ void STB::StartTrack(int frame, PredictiveField& pField) {
 // a function to make a link using predictive velocity field
 void STB::MakeLink(int nextFrame, const Position& currVelocity, double radius, Track& track, bool& activeTrack)
 {
-		
 		Position estimate;																			// we'll need an estimated future position
 		
-		estimate = track.Last() + currVelocity;														// the estimated point	
+		estimate = track.Last() + currVelocity/*Position(0, 0.42, 0)*/;														// the estimated point	
 		
 		int len = track.Length();																	// length of the track
 		
 		pair<Frame::const_iterator, float> cost;
+
+		//int num_candidate = iprMatched[nextFrame - first].NumParticles();
+		//bool* candidate_used = new bool[num_candidate];
 		
 		if (len == 1) {																		// if the track has only one particle
 																									// choosing the particle closest to the estimate
-			cost = ComputeCost(iprMatched[nextFrame - first], iprMatched[nextFrame - first], radius, estimate, currVelocity, currVelocity, true);
+			cost = ComputeCost(iprMatched[nextFrame - first], iprMatched[nextFrame - first], radius, estimate, currVelocity, currVelocity, true/*, candidate_used*/);
 		}
 		else if (len >= 2) {																// if it has more than 2 particles		
 			Position prevVelocity = track.Last() - track.Penultimate();								// using the velocity b/w previous 2 frames
@@ -693,7 +814,7 @@ void STB::MakeLink(int nextFrame, const Position& currVelocity, double radius, T
 				cost = ComputeCost(iprMatched[nextFrame - first], iprMatched[nextFrame - first + 1], radius, estimate, prevVelocity, currVelocity, false);
 			
 			else */
-				cost = ComputeCost(iprMatched[nextFrame - first], iprMatched[nextFrame - first], radius, estimate, prevVelocity, currVelocity, true);
+				cost = ComputeCost(iprMatched[nextFrame - first], iprMatched[nextFrame - first], radius, estimate, prevVelocity, currVelocity, true/*, candidate_used*/);
 		}
 						
 		if (cost.second == UNLINKED) {														// if no link found in next frame		
@@ -706,6 +827,8 @@ void STB::MakeLink(int nextFrame, const Position& currVelocity, double radius, T
 			activeTrack = true;																		// setting the track as still active
 			//cout << "(X,Y,Z) = (" << cost.first->X() << "," << cost.first->Y() << "," << cost.first->Z() << ")" << " and track is active: " << track.IsActive() << endl;
 		}
+
+		//delete [] candidate_used;
 }
 
 pair<Frame::const_iterator, float> STB::ComputeCost(Frame& fr1, Frame& fr2, double radius,
@@ -754,15 +877,25 @@ pair<Frame::const_iterator, float> STB::ComputeCost(Frame& fr1, Frame& fr2, doub
 	}
 
 	deque<Frame::const_iterator>::const_iterator m_end = matches.end();
-	pair<Frame::const_iterator, float> retval = make_pair(fitend-1, -1);
+	pair<Frame::const_iterator, float> retval = make_pair(fitend-1, -1), pair;
 	deque<float>::const_iterator mc = match_costs.begin();
 	unsigned int index_used = 0;
+	unsigned int ind;
+
 	for (deque<Frame::const_iterator>::const_iterator m = matches.begin(); m != m_end; ++m, ++mc, ++index_used) {
 		if (*mc > mincost) {
 			continue;
 		}
-		retval = make_pair(*m, *mc);
-		candidate_used[match_index[index_used]]= true;
+		ind = match_index[index_used];
+		pair = make_pair(*m, *mc);
+#pragma omp critical(candidate_used)
+		{
+			if ( false == candidate_used[ind] )
+			{
+				candidate_used[ind] = true;
+				retval = pair;
+			}
+		}
 	}
 
 	return retval;
@@ -837,6 +970,7 @@ void STB::Prediction(int frame, Frame& estPos, deque<double>& estInt) {
 //				predCoeff[i] = Polyfit(*tr, direction[i], tr->Length(), 2);
 //				est[i] = predCoeff[i][0] + predCoeff[i][1] * t + predCoeff[i][2] * pow(t, 2);
 				est[i] = LMSWienerPredictor(*tr, direction[i], 3);
+				cout << "tr->Length() < 4: =" << tr->Length() << "\n";
 			}
 			else if (tr->Length() < 6) {														// if length is 6 to 10, use all points to get 3rd degree polynomial
 //				predCoeff[i] = Polyfit(*tr, direction[i], tr->Length(), 3);
@@ -972,16 +1106,22 @@ double STB::LMSWienerPredictor(Track tracks, string direction, int order) {
 			series[i] = tracks[size - order - 1 + i].Z();	//z-values
 	}
 
-	// Wiener filter does badly near zero
-	bool shift_label = false;
-	double shift = 10;
-	if (fabs(series[order]) < 1) {
-		// make a shift to avoid zero-plane prediction
-		shift_label = true;
-		for (unsigned int i = 0; i < order + 1; ++i) {
-			series[i] = series[i] + shift;
-		}
+	bool shift_label = true;
+	double shift = 1000;
+	for (unsigned int i = 0; i < order + 1; ++i) {
+		series[i] = series[i] + shift;
 	}
+
+	//// Wiener filter does badly near zero
+	//bool shift_label = false;
+	//double shift = 10;
+	//if (fabs(series[order]) < 5/*1*/) {
+	//	// make a shift to avoid zero-plane prediction
+	//	shift_label = true;
+		//for (unsigned int i = 0; i < order + 1; ++i) {
+		//	series[i] = series[i] + shift;
+		//}
+	//}
 
 	double* filter_param = new double[order]; // the filter parameter
 	for (unsigned int i = 0; i < order; ++i) filter_param[i] = 0; // initialize the filter
@@ -1032,27 +1172,21 @@ void STB::Shake(Frame& estimate, deque<double>& intensity) {
 
 		deque<int> ignoreCam = Rem(estimate, intensity, _ipr.mindist_3D);					// removing ambiguous, ghost and particles that disappear on at least 2 cams
 
+		//Frame estPosOld = estimate;
+
 		for (int loopInner = 0; loopInner < _ipr.it_innerloop; loopInner++) {
 			double del;
-//			if (loopInner < 1)  del = config.shaking_shift;			// initial shake TODO
-//			else if (loopInner < 5)  del = config.shaking_shift / pow(2,loopInner - 1);//_ipr.mindist_2D/10;	// normal shakes TODO
-//			else  del = config.shaking_shift/100;
-
-//			double mindist_2D = _ipr.Get_mindist2D();
-
-			if (loopInner < 1)  del = config.shaking_shift;
-			else if (loopInner < 5)  del = config.shaking_shift / pow(2,loopInner - 1);
-			else  del = config.shaking_shift / 20;
+			if (loopInner < 1)  del = config.shaking_shift;			// initial shake TODO
+			else if (loopInner < 5)  del = config.shaking_shift / pow(2,loopInner - 1);//_ipr.mindist_2D/10;	// normal shakes TODO
+			else  del = config.shaking_shift/100;
 
 			_ipr.ReprojImage(estimate, OTFcalib, pixels_reproj, STBflag);
 //			_ipr.ReprojImage(estimate, OTFcalib, pixels_reproj, 0.5);					// adding the estimated particles to the reprojected image
 
 			for (int n = 0; n < ncams; n++) 												// updating the residual image by removing the estimates
 				for (int i = 0; i < Npixh; i++)
-					for (int j = 0; j < Npixw; j++) {
-						int residual = pixels_orig[n][i][j] - abs(pixels_reproj[n][i][j]);
-						pixels_res[n][i][j] =  residual; //(residual < 0) ? 0 : residual;
-					}
+					for (int j = 0; j < Npixw; j++)
+						pixels_res[n][i][j] = (pixels_orig[n][i][j] - abs(pixels_reproj[n][i][j]));
 
 //			// output the residual image
 //			NumDataIO<int> image_output;
@@ -1071,24 +1205,49 @@ void STB::Shake(Frame& estimate, deque<double>& intensity) {
 
 //			int index = 0;																	// correcting the estimated positions and their intensity by shaking
 //			double start = clock();
-#pragma omp parallel num_threads(24)
-						{
-//							int TID = omp_get_thread_num();
-//							cout<<"Thread %d is runing\n"<<TID<<endl;
+
+
+
+			vector<Position> shakeLims(estimate.NumParticles());
+
+#ifndef SAVE_INTERMEDIATE_SHAKES
+#pragma omp parallel //num_threads(24)
+#endif
+			{
+				//							int TID = omp_get_thread_num();
+				//							printf("Thread %d is runing\n", TID);
+#ifndef SAVE_INTERMEDIATE_SHAKES
 #pragma omp for
+#endif
 //			for (Frame::const_iterator pID = estimate.begin(); pID != estimate.end(); ++pID) {
-			for (int i = 0; i < estimate.NumParticles(); ++i) {
-				Frame::const_iterator pID = estimate.begin() + i;
-				OTF otf_calib(OTFcalib);
-				Shaking s(ncams, ignoreCam[i], otf_calib, Npixw, Npixh, _ipr.psize, del, *pID, cams, pixels_res, intensity[i]);
-				estimate[i] = s.Get_posnew();
-				intensity[i] = s.Get_int();
-//				index++;
+				for (int i = 0; i < estimate.NumParticles(); ++i) {
+					Frame::const_iterator pID = estimate.begin() + i;
+					OTF otf_calib(OTFcalib);
+					Shaking s(ncams, ignoreCam[i], otf_calib, Npixw, Npixh, _ipr.psize, del, *pID, cams, pixels_res, intensity[i]);
+					estimate[i] = s.Get_posnew();
+					intensity[i] = s.Get_int();
+					shakeLims[i] = s.Get_lims();
+					//				index++;
+				}
 			}
-						}
-//			double duration = (clock() - start) / (double) CLOCKS_PER_SEC;
-//			cout<<"time to do shaking for each loop:"<<duration<<endl;
+
+			Position totLims = accumulate(shakeLims.begin(), shakeLims.end(), Position(0, 0, 0));
+			
+			if (estimate.NumParticles() != 0) totLims /= estimate.NumParticles();
+			else totLims = Position(0, 0, 0);
+
+			cout << "Shake limits percentage: " << totLims.X() << " " << totLims.Y() << " " << totLims.Z() << "\n";
+
+			//			double duration = (clock() - start) / (double) CLOCKS_PER_SEC;
+			//			cout<<"time to do shaking for each loop:"<<duration<<endl;
 		}
+
+		//ofstream f("D:\\Users\\Mike\\ShakeTheBox-master\\TR_ppp_0_025\\Tracks\\testShake2.dat", ios::out);
+		//for (int index = 0; index < estimate.NumParticles(); index++) {						// adding 2D image centers and intensity data to the estimates 
+		//	Position pos3Dold = estPosOld[index];
+		//	Position pos3Dnew = estimate[index];
+		//	f << pos3Dold.X() - pos3Dnew.X() << "\t" << pos3Dold.Y() - pos3Dnew.Y() << "\t" << pos3Dold.Z() - pos3Dnew.Z() << endl;
+		//}
 
 		for (int index = 0; index < estimate.NumParticles(); index++) {						// adding 2D image centers and intensity data after shaking
 			_ipr.FullData(estimate[index], intensity[index], ncams, ALL_CAMS);
@@ -1108,7 +1267,7 @@ void STB::Shake(Frame& estimate, deque<double>& intensity) {
 
 
 	}
-	
+
 }
 
 // removing ghost,ambiguous and particles leaving measurement domain
@@ -1133,6 +1292,8 @@ deque<int> STB::Rem(Frame& pos3D, deque<double>& int3D, double mindist_3D) {
 				j++;
 		}
 	}
+
+	//cout << "rem close = " << s_al << "\n";
 
 	int ghost = 0;																		
 	double avgIntTemp = 0, avgInt = 0, count = 0;										// deleting based on intensity
@@ -1160,7 +1321,7 @@ deque<int> STB::Rem(Frame& pos3D, deque<double>& int3D, double mindist_3D) {
 				a_il++;
 			}
 			else {
-//				inactiveTracks.push_back(activeLongTracks[index]);						// shifting the corresponding activeLongTrack to inactiveTracks
+				inactiveTracks.push_back(activeLongTracks[index]);						// shifting the corresponding activeLongTrack to inactiveTracks
 				a_is++;
 			}
 			activeLongTracks.erase(activeLongTracks.begin() + index);
@@ -1168,6 +1329,8 @@ deque<int> STB::Rem(Frame& pos3D, deque<double>& int3D, double mindist_3D) {
 			ghost++;
 		}
 	}
+
+	//cout << "rem intensity = " << s_al << "\n";
 
 	deque<int> ignoreCam(pos3D.NumParticles());
 	double intensityThresh = 0.25*_ipr.Get_threshold();
@@ -1242,6 +1405,8 @@ deque<int> STB::Rem(Frame& pos3D, deque<double>& int3D, double mindist_3D) {
 			i++;
 	}
 
+	//cout << "rem diff intensity = " << s_al << "\n";
+
 	return ignoreCam;
 }
 
@@ -1249,21 +1414,16 @@ deque<int> STB::Rem(Frame& pos3D, deque<double>& int3D, double mindist_3D) {
 Frame STB::IPRonResidual(Calibration& calib, Tiff2DFinder& t, deque<int**>& pixels_orig, deque<int**>& pixels_reproj, deque<int**>& pixels_res, Frame& estimates) {
 	double mindist_3D = _ipr.mindist_3D;														// performing triangulation / IPR on the remaining particles in residual images
 	double mindist_2D = _ipr.mindist_2D;
-//	double xlim = ((double)(Npixw - 1)) / 2, ylim = ((double)(Npixh - 1)) / 2;
-//	double intensityThresh = 0.8*_ipr.Get_threshold();//0.25*_ipr.Get_threshold();
+	double xlim = ((double)(Npixw - 1)) / 2, ylim = ((double)(Npixh - 1)) / 2;
+	double intensityThresh = 0.25*_ipr.Get_threshold();
 	deque<Position> candidates;
 	deque<int> camNums;
 	for (int i = 0; i < ncams; i++)
 		camNums.push_back(i);
 
-	deque<Camera> cam_param = calib.Get_cam();
-
-	double pix_length = (cam_param[0].Get_wpix() + cam_param[0].Get_hpix()) / 2; // this will be used as the shift increment
-
 	for (int outerloop = 0; outerloop < _ipr.it_outerloop; outerloop++) {						// identify the particle candidates from residual images 
 
-//		calib.Set_min2D(pow(1.1, outerloop)*mindist_2D);
-		calib.Set_min2D(mindist_2D + pix_length / 4 * outerloop);
+		calib.Set_min2D(pow(1.1, outerloop)*mindist_2D);
 
 		// running IPR on the residual images
 		Frame temp = _ipr.IPRLoop(calib, OTFcalib, camNums, ALL_CAMS, t.Get_colors(), pixels_orig, pixels_reproj, pixels_res, outerloop);
@@ -1277,8 +1437,7 @@ Frame STB::IPRonResidual(Calibration& calib, Tiff2DFinder& t, deque<int**>& pixe
 		Calibration calibReduced(_ipr.calibfile, REDUCED_CAMS, _ipr.mindist_2Dr, _ipr.mindist_3Dr, ncams);		// new calibration file for reduced cameras					
 		for (int outerloop = 0; outerloop < _ipr.it_reducedCam; outerloop++) {
 
-//			calibReduced.Set_min2D(pow(1.1, outerloop)*_ipr.mindist_2Dr);
-			calibReduced.Set_min2D(_ipr.mindist_2Dr + pix_length / 4 * outerloop);
+			calibReduced.Set_min2D(pow(1.1, outerloop)*_ipr.mindist_2Dr);
 
 																								// running IPR by ignoring cameras one by one
 			for (int ignoreCam = 0; ignoreCam < ncams; ignoreCam++) {
@@ -1320,7 +1479,7 @@ Frame STB::IPRonResidual(Calibration& calib, Tiff2DFinder& t, deque<int**>& pixe
 
 		for (int j = 0; j < estimates.NumParticles(); j++) {
 			int num_overlap = 0;
-			int dist_thred = 0.5;// _ipr.Get_psize() / 2;
+			int dist_thred = _ipr.Get_psize() / 2;
 			if (fabs(X1 - estimates[j].X1()) <= dist_thred && fabs(Y1 - estimates[j].Y1()) <= dist_thred) num_overlap ++;
 			if (fabs(X2 - estimates[j].X2()) <= dist_thred && fabs(Y2 - estimates[j].Y2()) <= dist_thred) num_overlap ++;
 			if (fabs(X3 - estimates[j].X3()) <= dist_thred && fabs(Y3 - estimates[j].Y3()) <= dist_thred) num_overlap ++;
@@ -1329,7 +1488,7 @@ Frame STB::IPRonResidual(Calibration& calib, Tiff2DFinder& t, deque<int**>& pixe
 //				(abs(X2 - estimates[j].X2()) < 1 && abs(Y2 - estimates[j].Y2()) < 1) &&
 //				(abs(X3 - estimates[j].X3()) < 1 && abs(Y3 - estimates[j].Y3()) < 1) &&
 //				(abs(X4 - estimates[j].X4()) < 1 && abs(Y4 - estimates[j].Y4()) < 1))
-			if (num_overlap >= 4) {
+			if (num_overlap >= 3) {
 				candidates.erase(candidates.begin() + i);
 				break;
 			}
@@ -1337,17 +1496,16 @@ Frame STB::IPRonResidual(Calibration& calib, Tiff2DFinder& t, deque<int**>& pixe
 	}
 	cout << "\tTotal particles after removing close particles (" << candidates.size() << ")" << endl;
 
-
-
 	return Frame(candidates);
 }
 
 // linking short tracks with particle candidates in residual images
-void STB::MakeShortLinkResidual(int nextFrame, Frame& candidates, deque<Track>::iterator& tr, int iterations, bool* erase, bool* candidate_used) {
+void STB::MakeShortLinkResidual(int nextFrame, Frame& candidates, deque<Track>::iterator& tr, int iterations, bool* erase, bool* candidate_used, int *linkType) {
 
 	pair<Frame::const_iterator, float> cost;
 
 	for (int it = 0; it < iterations; it++) {													// iteratively trying to find a link for the short track from particle candidates
+
 		double rsqr = pow(pow(1.1, it) * 3 * avgIPDist, 2);
 		double shift = pow(1.1, it) * largestShift;
 		deque<double> dist;
@@ -1360,42 +1518,50 @@ void STB::MakeShortLinkResidual(int nextFrame, Frame& candidates, deque<Track>::
 //		{
 //#pragma omp for
 		for (int j = 0; j < activeLongTracks.size(); ++j) {										// identifying the neighbouring tracks (using 3*avg interparticle dist.) and getting their particle velocities
+
 			double dsqr = Distance(tr->Last(), activeLongTracks[j].Penultimate());
 
-
 			if (dsqr < rsqr && dsqr > 0) {
-				d = pow(dsqr, 0.5);
-				totalDist = totalDist + d;
+				//d = pow(dsqr, 0.5);
+				//totalDist = totalDist + d;
+				totalDist += exp(-dsqr/2);
 //#pragma omp critical//(dist)
 //				{
-				dist.push_back(d);
-				disp.push_back(activeLongTracks[j].Last() - activeLongTracks[j].Penultimate());
+				//dist.push_back(d);
+				dist.push_back(dsqr);
+				//disp.push_back(activeLongTracks[j].Last() - activeLongTracks[j].Penultimate());
+				disp.push_back(activeLongTracks[j].GetPredictedPos() - activeLongTracks[j].Penultimate());
 //				}
 //			}
-		}
+			}
 		}
 
 		if (dist.size() > 0) {															// if it finds neighbouring tracks
-			deque<double> anti_dist;
-			double max_dist = dist[0];
-			for (int j = 0; j < dist.size(); j++) {
-				if (max_dist < dist[j])
-					max_dist = dist[j];
-			}
-			for (int j = 0; j < dist.size(); j++) {
-				anti_dist.push_back(max_dist / dist[j]);
-			}
-			double total_anti_dist;
-			for (int j = 0; j < dist.size(); j++) {
-				total_anti_dist = total_anti_dist + anti_dist[j];
-			}
+			//deque<double> anti_dist;
+			//double max_dist = dist[0];
+			//for (int j = 0; j < dist.size(); j++) {
+			//	if (max_dist < dist[j])
+			//		max_dist = dist[j];
+			//}
+			//for (int j = 0; j < dist.size(); j++) {
+			//	anti_dist.push_back(max_dist / dist[j]);
+			//}
+			//double total_anti_dist = 0;
+			//for (int j = 0; j < dist.size(); j++) {
+			//	total_anti_dist = total_anti_dist + anti_dist[j];
+			//}
 			for (int j = 0; j < dist.size(); j++) {												// perform Gaussian wt. avg. to get velocity field
-				double weight = (dist[j] / totalDist);
+				double weight = exp(-dist[j]/2) / totalDist;//(dist[j] / totalDist);
+				//cout << "weight = " << weight << " for dist = " << dist[j] << "\n";
 //				double weight = (anti_dist[j] / total_anti_dist);
 				vel.Set_X(vel.X() + weight*disp[j].X());
 				vel.Set_Y(vel.Y() + weight*disp[j].Y());
 				vel.Set_Z(vel.Z() + weight*disp[j].Z());
 			}
+
+			//cin.get();
+
+			//cout << "Neighsize = " << dist.size() << " vel = " << vel.Magnitude() << "\n";
 
 			Position estimate = tr->Last() + vel;
 //			if (fabs(tr->Last().X() - 2.2104) < 0.01 ) {
@@ -1403,16 +1569,23 @@ void STB::MakeShortLinkResidual(int nextFrame, Frame& candidates, deque<Track>::
 //						}																					// finding a link for this short track using the velocity field
 			cost = ComputeCost(candidates, candidates, searchRadiusSTB, estimate, vel, vel, true, candidate_used);
 
-			if (cost.second == UNLINKED) {
-				Position estimate = tr->Last();														// using nearest neighbour to make a link
-				cost = ComputeCost(candidates, candidates, shift, estimate, vel, vel, true, candidate_used);
-			}
+			if ( cost.second != UNLINKED ) {
+				*linkType = 1;
+			} 
+			//else {
+			//	Position vel(0, 0, 0);
+			//	Position estimate = tr->Last();														// using nearest neighbour to make a link
+			//	cost = ComputeCost(candidates, candidates, shift, estimate, vel, vel, true, candidate_used); // put vel = 0 ?
 
+			//	if (cost.second != UNLINKED) *linkType = 2;
+			//}
+			
 		}
-
 		else {																			// if no neighbouring tracks are identified
 			Position estimate = tr->Last();														// using nearest neighbour to make a link
 			cost = ComputeCost(candidates, candidates, shift, estimate, vel, vel, true, candidate_used);
+
+			if (cost.second != UNLINKED) *linkType = 3;
 		}
 
 		if (cost.second != UNLINKED) {															// if linked with a candidate
@@ -1425,20 +1598,8 @@ void STB::MakeShortLinkResidual(int nextFrame, Frame& candidates, deque<Track>::
 	}
 
 	if (cost.second == UNLINKED) {																// if no link is found for the short track
-		if (tr->Length() > 3) {																	// and if the track has at least 4 particles
-//			inactiveTracks.push_back(*tr);														// add it to inactive tracks
-			a_is++;
-		}
-		if (tr->Length() == 1)
-			s_as1++;
-		else if (tr->Length() == 2)
-			s_as2++;
-		else if (tr->Length() == 3)
-			s_as3++;
-
 //		tr = activeShortTracks.erase(tr);														// then delete from activeShortTracks
 		*erase= true;  // Shiyong Tan: Label them instead of deleting them for the convenience of parallelization.
-		
 	}
 }
 
@@ -1516,8 +1677,12 @@ void STB::MakeShortLinkResidual(int nextFrame, Frame& candidates, deque<Track>::
 	}
 }
 
+
+#define NUM_TRACK_TO_AVERAGE 25
+
+
 bool STB::CheckVelocity(Track& tr) {
-	int num_track_to_average = 25;
+	//int num_track_to_average = 25;
 	double search_radius = designated_search_radius; // TODO: make it as a configure parameter
 //	double threshold_scale = 5;
 	if (particle_search_radius > 0) search_radius = particle_search_radius;
@@ -1525,8 +1690,10 @@ bool STB::CheckVelocity(Track& tr) {
 
 //	vector<double> dist;
 //	vector<int> neighbor_track;
-	double dist[num_track_to_average];
-	int neighbor_track[num_track_to_average];
+	//double dist[num_track_to_average];
+	double dist[NUM_TRACK_TO_AVERAGE];
+	//int neighbor_track[num_track_to_average];
+	int neighbor_track[NUM_TRACK_TO_AVERAGE];
 
 	Position last = tr.Last();
 	double x_l = last.X() - search_radius, x_u = last.X() + search_radius;
@@ -1555,7 +1722,8 @@ bool STB::CheckVelocity(Track& tr) {
 	//			if (neighbor_track.size() <= 50) {
 	#pragma omp critical(num_track)
 								{
-				if (num_track < num_track_to_average) {
+				//if (num_track < num_track_to_average) {
+				if (num_track < NUM_TRACK_TO_AVERAGE) {
 					dist[num_track] = d;
 					neighbor_track[num_track] = i;
 					++ num_track;
@@ -1566,7 +1734,8 @@ bool STB::CheckVelocity(Track& tr) {
 					double dist_max = dist[0];
 					int index_max = 0;
 	//				for (int j = 1; j < neighbor_track.size(); ++j) {
-					for (int j = 1; j < num_track_to_average; ++j) {
+					//for (int j = 1; j < num_track_to_average; ++j) {
+					for (int j = 1; j < NUM_TRACK_TO_AVERAGE; ++j) {
 						if (dist[j] > dist_max) {
 							dist_max = dist[j];
 							index_max = j;
@@ -1591,12 +1760,20 @@ bool STB::CheckVelocity(Track& tr) {
 //	if (neighbor_track.size() < 10) return true; // if less than 10 track is found, then return true
 	if (num_track < 0) return true;
 
-	if (num_track == num_track_to_average) {
+	//if (num_track == num_track_to_average) {
+	//	double mean_radius = 0;
+	//	for (int i = 1; i < num_track_to_average; ++i) {
+	//		mean_radius += dist[i];
+	//	}
+	//	mean_radius /= num_track_to_average;
+	//	particle_search_radius = mean_radius;
+	//}
+	if (num_track == NUM_TRACK_TO_AVERAGE) {
 		double mean_radius = 0;
-		for (int i = 1; i < num_track_to_average; ++i) {
+		for (int i = 1; i < NUM_TRACK_TO_AVERAGE; ++i) {
 			mean_radius += dist[i];
 		}
-		mean_radius /= num_track_to_average;
+		mean_radius /= NUM_TRACK_TO_AVERAGE;
 		particle_search_radius = mean_radius;
 	}
 
@@ -1823,7 +2000,7 @@ void STB::MatTracksSave(string address, string s, bool is_back_STB) {
 	
 	SaveTrackToTXT(activeLongTracks, address + X1);
 	SaveTrackToTXT(activeShortTracks, address + X2);
-//	SaveTrackToTXT(inactiveTracks, address + X3);  // No longer save inactiveTracks which are useless
+	SaveTrackToTXT(inactiveTracks, address + X3);  // No longer save inactiveTracks which are useless
 	SaveTrackToTXT(exitTracks, address + X4);
 	SaveTrackToTXT(inactiveLongTracks, address + X5);
 	if (is_back_STB) {
@@ -1859,6 +2036,27 @@ void STB::LoadAllTracks(string address, string frame_number, bool is_back_STB) {
 		LoadTrackFromTXT(address + X5, InactiveLong);
 		if (is_back_STB) LoadTrackFromTXT(address + X6, Buffer);
 	}
+	cout << "All tracks for frame = " << frame_number << " were loaded...\n";
+
+	// get stats for shorttracks
+	int num_shorttrack = activeShortTracks.size();
+
+	m_short1 = 0, m_short2 = 0, m_short3 = 0;
+
+	for (unsigned int i = 0; i < num_shorttrack; ++i) {
+		deque<Track>::iterator tr = activeShortTracks.begin() + i;
+		if (tr->Length() == 1)
+			m_short1++;
+		else if (tr->Length() == 2)
+			m_short2++;
+		else if (tr->Length() == 3)
+			m_short3++;
+	}
+
+	cout << "\t\tNo. of active Short tracks:	" << num_shorttrack << "(" << m_short1 << ", " << m_short2 << ", " << m_short3 << ")" << endl;
+	cout << "\t\tNo. of active Long tracks:	" << activeLongTracks.size() << endl;
+	cout << "\t\tNo. of exited tracks:		" << exitTracks.size() << endl;
+	cout << "\t\tNo. of inactive tracks:		" << inactiveTracks.size() << endl;
 
 // End
 }
@@ -2032,6 +2230,22 @@ void STB::SaveTrackToTXT(deque<Track> tracks, string address) {
 	delete[] track_data;
 }
 
+void STB::mySaveTrackToTXT(deque<Track> tracks, string address) {
+	ofstream f(address + ".dat");
+	size_t num_track = tracks.size(); // number of tracks
+
+	f << "TITLE     = \"\"\nVARIABLES = \"trackNo\"\n\"time\"\n\"x [mm]\"\n\"y [mm]\"\n\"z [mm]\"\n";
+
+	for (unsigned int i = 0; i < num_track; ++i) {
+		unsigned int len = tracks.at(i).Length();
+		f << "ZONE T = \"track" << i << "\"\nI=" << len << ", J=1, K=1, ZONETYPE=Ordered\nDATAPACKING=POINT\n";
+		unsigned int start_time = tracks.at(i).GetTime(0);
+		for (unsigned int j = 0; j < len; ++j) {
+			f << i << "\t" << j + start_time << "\t" << tracks.at(i)[j].X() << "\t" << tracks.at(i)[j].Y() << "\t" << tracks.at(i)[j].Z() << "\n";
+		}
+	}
+}
+
 //###################### TEMPORARY FUNTIONS FOR TESTING ###############################
 
 // to load 3D positions without IPR
@@ -2077,17 +2291,29 @@ Frame STB::Load_3Dpoints(string path) {
 //
 //	Mat_Close(mat);
 	// TODO: to check whether it works.
-	string file = tiffaddress + path + ".txt";
+	string file = tiffaddress + "Tracks\\" +path + ".txt";
 	NumDataIO<double> data_io;
 	data_io.SetFilePath(file);
+
 	int total_num = data_io.GetTotalNumber();
-	int rows = total_num / 3;
-	double* points_array =  new double[rows * 3];
-	data_io.ReadData(points_array);
-	for (int i = 0; i < rows; i++) {
-		Position pos(points_array[i * 3], points_array[i * 3 + 1], points_array[i * 3 + 2]);
-		iprFrame.Add(pos);
+
+	if (error == NO_FILE) {
+		cout << "Can not open file: " << file;
+		cin.get();
+		exit(1);
 	}
+
+	int rows = total_num / 12;
+	vector<double> points_array(rows*12);
+	data_io.ReadData((double*) &points_array[0]);
+
+	//ofstream fout(file + "_");
+	for (int i = 0; i < rows; i++) {
+		Position pos(points_array[12 * i], points_array[12 * i + 1], points_array[12 * i + 2], points_array[12 * i + 3], points_array[12 * i + 4], points_array[12 * i + 5], points_array[12 * i + 6], points_array[12 * i + 7], points_array[12 * i + 8], points_array[12 * i + 9], points_array[12 * i + 10], points_array[12 * i + 11]);
+		iprFrame.Add(pos);
+		//fout << points_array[12 * i] << "\t" << points_array[12 * i + 1] << " " << points_array[12 * i + 2] << "\n";
+	}
+	cout << rows << " 3D particle positions has been loaded from the file " << file << "\n";
 	return iprFrame;
 	// END
 }

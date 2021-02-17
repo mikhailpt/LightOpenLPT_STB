@@ -15,11 +15,13 @@
 #include <PredictiveField.h>
 #include "NumDataIO.h"
 #include "Common.h"
+#include "../../inc/Kriging/OrdinaryKriging.hpp"	//TODO set propper include in settings
 
 #define PREV_FRAME 0
 #define CURR_FRAME 1
 
 using namespace std;
+
 void PredictiveField::GetPredictiveField(Frame prevFramePos, Frame currFramePos, std::string& fname, int frame) {
 	matchedPrev = prevFramePos;
 	matchedCurr = currFramePos;
@@ -62,15 +64,12 @@ void PredictiveField::GetPredictiveField(Frame prevFramePos, Frame currFramePos,
 	// saving the grid points
 	GridPoints();
 
-//	if (matlabFlag) {
-	if (debug_mode == SKIP_PREDITIVE_FIELD) {
-		string path = config.iprfile;
-//		parsed >> path;
-		cout << "\t\tLoading predictive field from txtfile" << endl;
+	if (matlabFlag) {
+		string path;
+		parsed >> path;
+		cout << "\t\tLoading predictive field from matfile" << endl;
 		// geting the field from matfile
 		// TODO: to check whether it works.
-		path.replace(path.end() - 13, path.end(), "PredictiveField" + to_string(frame - 1) + "&"
-																+ to_string(frame) + ".txt");
 		Load_field(path);
 	}
 	else {
@@ -78,11 +77,6 @@ void PredictiveField::GetPredictiveField(Frame prevFramePos, Frame currFramePos,
 		// calculating the field
 		Field();
 //		cout<<field[0][1];
-		// save field data
-		string path = config.iprfile;
-		path.replace(path.end() - 13, path.end(), "PredictiveField" + to_string(frame - 1) + "&"
-																		+ to_string(frame) + ".txt");
-		SaveField(path);
 	}
 
 
@@ -106,6 +100,70 @@ void PredictiveField::GetPredictiveField(Frame prevFramePos, Frame currFramePos,
 
 }
 
+void PredictiveField::myLoad_field(string path, string& fname) {
+
+	//TODO: report err when cannot open file.
+		// remove comments from the file
+	ifstream infile(fname.c_str(), ios::in);
+	string line;
+	stringstream parsed;
+	while (getline(infile, line)) {
+		size_t commentpos = line.find('#');
+		if (commentpos > 0) {
+			if (commentpos < string::npos)
+				line.erase(commentpos);
+
+			parsed << line << '\t';
+		}
+	}
+	infile.close();
+
+	viewAreaLimits[0] = config.x_lower_limit; viewAreaLimits[1] = config.x_upper_limt;
+	viewAreaLimits[2] = config.y_lower_limit; viewAreaLimits[3] = config.y_upper_limt;
+	viewAreaLimits[4] = config.z_lower_limit; viewAreaLimits[5] = config.z_upper_limt;
+
+	for (int i = 0; i < 3; i++) {
+		parsed >> gridSize[i];
+		gridSize[i] = gridSize[i] * config.factor;
+	}
+
+	parsed >> radius;
+	radius = radius * config.factor;
+
+	// saving the grid points
+	GridPoints();
+
+	// load data
+	string fnameTot = (path + "_af1.dat");
+	ifstream f(fnameTot);
+
+	if (!f.is_open()) {
+		error = NO_FILE;
+		return;
+	}
+
+	int i, status;
+
+	for (int z = 0; z < numGrids[2]; z++) {
+		for (int y = 0; y < numGrids[1]; y++) {
+			for (int x = 0; x < numGrids[0]; x++) {
+				i = x * numGrids[2] * numGrids[1] + y * numGrids[2] + z;
+				f >> gridPoints[0][i];
+				f >> gridPoints[1][i];
+				f >> gridPoints[2][i];
+				f >> field[0][i];
+				f >> field[1][i];
+				f >> field[2][i];
+				f >> field[3][i];
+				//cout << gridPoints[0][i] << "\t" << gridPoints[1][i] << "\t" << gridPoints[2][i] << "\t" << field[0][i] << "\t" << field[1][i] << "\t" << field[2][i] << "\t" << field[3][i] << "\n";
+				//cin >> status;
+			}
+		}
+	}
+
+	cout << "Predictive field from file " << fnameTot << " was loaded!" << endl;
+}
+
 void PredictiveField::GridPoints() {
 
 	for (int i = 0; i < 3; i++) {
@@ -113,10 +171,10 @@ void PredictiveField::GridPoints() {
 	}
 
 	totalGridPoints = numGrids[0] * numGrids[1] * numGrids[2];
+	gridPoints = new vector<double>[3];
 
-	for (int n = 0; n < 3; n++) {
+	for (int n = 0; n < 4; n++) {
 		field.push_back(new double[totalGridPoints]);
-		gridPoints = new vector<double>[totalGridPoints];
 	}
 
 	for (double x = viewAreaLimits[0]; x <= viewAreaLimits[1]; x = x + gridSize[0]) {
@@ -135,12 +193,11 @@ void PredictiveField::Field() {
 
 	double rsqr = pow(radius, 2);
 	int dispMapRes = 10;
-	Size = 4*dispMapRes* radius + 1;
+	double radius_ = 0.5;// maximum displacement in mm
+	Size = 4 * dispMapRes * radius_ + 1;
 	// converting the Map index (i) to displacement (dx) as i = m*dx + c;
-	m = (Size - 1) / (4 * radius); 
+	m = dispMapRes;
 	c = (Size - 1) / 2;
-
-//	cout<<"Grid number:"<<totalGridPoints<<endl;
 
 #pragma omp parallel //num_threads(8)
 						{
@@ -174,7 +231,8 @@ void PredictiveField::Field() {
 					disp[1] = currFrame[curr]->Y() - prevFrame[prev]->Y();
 					disp[2] = currFrame[curr]->Z() - prevFrame[prev]->Z();
 					disp[3] = 1;// currFrame[curr]->Info() * prevFrame[prev]->Info();
-					displacements.push_back(disp);
+					if ( fabs(disp[0]) < radius_ && fabs(disp[1]) < radius_ && fabs(disp[2]) < radius_ )
+						displacements.push_back(disp);
 				}
 			}
 
@@ -195,12 +253,14 @@ void PredictiveField::Field() {
 			field[0][i] = peak[0];
 			field[1][i] = peak[1];
 			field[2][i] = peak[2];
+			field[3][i] = displacements.size();
 		}
 		else {
 			deque<double> peak(3, 0);
 			field[0][i] = peak[0];
 			field[1][i] = peak[1];
 			field[2][i] = peak[2];
+			field[3][i] = 0;
 		}
 		for (int j = 0; j < Size; j++) {
 			for (int k = 0; k < Size; k++) {
@@ -375,7 +435,7 @@ double PredictiveField::Gaussian1DPeak(double y1, double v1, double y2, double v
 	return displacement;
 }*/
 
-Position PredictiveField::ParticleInterpolation(Position pos3D) {
+Position PredictiveField::TrilinearInterpolation(Position pos3D) {
 
 	std::vector<double> gridx = linspace(viewAreaLimits[0], viewAreaLimits[1], numGrids[0]);
 	std::vector<double> gridy = linspace(viewAreaLimits[2], viewAreaLimits[3], numGrids[1]);
@@ -406,6 +466,99 @@ Position PredictiveField::ParticleInterpolation(Position pos3D) {
 	Position displacement(field_x.interp(pos1.begin()), field_y.interp(pos1.begin()), field_z.interp(pos1.begin()));
 
 	return displacement;
+}
+
+std::vector<Position> PredictiveField::KrigingInterpolation(const std::vector<Position>& estimateCord_)
+{
+
+	std::vector<double> gridx = linspace(viewAreaLimits[0], viewAreaLimits[1], numGrids[0]);
+	std::vector<double> gridy = linspace(viewAreaLimits[2], viewAreaLimits[3], numGrids[1]);
+	std::vector<double> gridz = linspace(viewAreaLimits[4], viewAreaLimits[5], numGrids[2]);
+
+	// the size of grid in each dimension
+	array<size_t, 3> grid_sizes;
+	grid_sizes[0] = numGrids[0];
+	grid_sizes[1] = numGrids[1];
+	grid_sizes[2] = numGrids[2];
+
+	// total number of elements
+	size_t num_elements = grid_sizes[0] * grid_sizes[1] * grid_sizes[2];
+
+	auto unpackPositionCord = [gridx, gridy, gridz, grid_sizes](size_t index)
+	{
+		size_t x[3];
+		for (size_t i = 2; i < 3; --i)
+		{	//Я не уверен в каком порядке кадируются индыксы (и идут элменеты в field)
+			x[i] = index % grid_sizes[i];
+			index /= grid_sizes[i];
+		}
+		assert(index == 0);
+		return Position(gridx[x[0]], gridy[x[1]], gridz[x[2]]);
+	};
+
+	auto unpackPositionVel = [this](size_t index)
+	{
+		return Position(field[0][index], field[1][index], field[2][index]);
+	};
+
+	using Element = std::pair<Position, Position>;	//cordinates and velocity
+	auto distance = [](const Element& a, const Element& b)
+	{
+		auto delta = a.first - b.first;
+		return std::hypot(std::hypot(delta.X(), delta.Y()), delta.Z());	//Linear Kriging
+	};
+
+	auto access = [](Element& a)->Element::second_type&
+	{
+		return a.second;
+	};
+
+	std::vector<Element> estimate(estimateCord_.size());
+	for (size_t i = 0; i < estimate.size(); ++i)
+	{
+		estimate[i] = std::make_pair(estimateCord_[i], Position());
+	}
+
+	std::vector<Element> data;
+	data.reserve(num_elements);
+	for (size_t i = 0; i < num_elements; ++i)
+	{
+		Element e = std::make_pair(unpackPositionCord(i), unpackPositionVel(i));
+		if (e.second == Position(0,0,0))
+		{
+			continue;
+		}
+		bool close = false;
+		for (size_t j = 0; j < estimate.size(); ++j)
+		{
+			if (distance(e, estimate[j]) < 3.0)
+			{
+				close = true;
+				break;
+			}
+		}
+		if (close)
+		{
+			data.push_back(e);
+		}
+	}
+
+	Kriging::OrdinaryKriging(data.cbegin(), data.cend(), estimate.begin(), estimate.end(), distance, access);
+
+	std::vector<Position> result(estimate.size());
+	for (size_t i = 0; i < result.size(); ++i)
+	{
+		result[i] = estimate[i].second;
+	}
+
+	return result;
+}
+
+Position PredictiveField::KrigingInterpolation(const Position& p)
+{
+	std::vector<Position> v(1);
+	v[0] = p;
+	return KrigingInterpolation(v)[0];
 }
 
 // return an evenly spaced 1-corrSize grid of doubles.
@@ -461,17 +614,17 @@ void PredictiveField::MatfileSave(vector<double*> pos, string name) {
 // TODO: to check whether it works
 	// Convert pos into 2D matrix
 	size_t sizeofpos3D = totalGridPoints;
-	double point_array[sizeofpos3D][3];
+	vector<double> point_array(sizeofpos3D*3);
 	for (int i = 0; i < sizeofpos3D; i++) {
-		point_array[i][0] = pos[0][i];
-		point_array[i][1] = pos[1][i];
-		point_array[i][2] = pos[2][i];
+		point_array[3 * i] = pos[0][i];
+		point_array[3 * i + 1] = pos[1][i];
+		point_array[3 * i + 2] = pos[2][i];
 	}
 
 	NumDataIO<double> data_io;
 	data_io.SetFilePath(name + ".txt");
 	data_io.SetTotalNumber(sizeofpos3D * 3);
-	data_io.WriteData((double*) point_array);
+	data_io.WriteData((double*) &point_array[0]);
 	// END
 }
 
@@ -517,17 +670,17 @@ void PredictiveField::MatfileSave(vector<double> pos[3], string name) {
 //	Mat_Close(matfp);
 	// Convert pos into 2D matrix
 	size_t sizeofpos3D = totalGridPoints;
-	double point_array[sizeofpos3D][3];
+	vector<double> point_array(sizeofpos3D*3);
 	for (int i = 0; i < sizeofpos3D; i++) {
-		point_array[i][0] = pos[0][i];
-		point_array[i][1] = pos[1][i];
-		point_array[i][2] = pos[2][i];
+		point_array[3 * i] = pos[0][i];
+		point_array[3 * i + 1] = pos[1][i];
+		point_array[3 * i + 2] = pos[2][i];
 	}
 
 	NumDataIO<double> data_io;
 	data_io.SetFilePath(name + ".txt");
 	data_io.SetTotalNumber(sizeofpos3D * 3);
-	data_io.WriteData((double*) point_array);
+	data_io.WriteData((double*) &point_array[0]);
 	// END
 }
 //
@@ -572,20 +725,20 @@ void PredictiveField::MatfileSave(vector<vector<double>> pos, string name) {
 //	Mat_VarFree(cell_array);
 //	Mat_Close(matfp);
 	size_t sizeofpos3D = totalGridPoints;
-	double point_array[sizeofpos3D][6];
+	vector<double> point_array(sizeofpos3D*6);
 	for (int i = 0; i < sizeofpos3D; i++) {
-		point_array[i][0] = pos[i][0];
-		point_array[i][1] = pos[i][1];
-		point_array[i][2] = pos[i][2];
-		point_array[i][3] = pos[i][3];
-		point_array[i][4] = pos[i][4];
-		point_array[i][5] = pos[i][5];
+		point_array[6 * i] = pos[i][0];
+		point_array[6 * i + 1] = pos[i][1];
+		point_array[6 * i + 2] = pos[i][2];
+		point_array[6 * i + 3] = pos[i][3];
+		point_array[6 * i + 4] = pos[i][4];
+		point_array[6 * i + 5] = pos[i][5];
 	}
 
 	NumDataIO<double> data_io;
 	data_io.SetFilePath(name + ".txt");
 	data_io.SetTotalNumber(sizeofpos3D * 6);
-	data_io.WriteData((double*) point_array);
+	data_io.WriteData((double*) &point_array[0]);
 	// END
 }
 
@@ -633,35 +786,215 @@ void PredictiveField::Load_field(string path) {
 //	Mat_Close(mat);
 //	string file = path + to_string(frame) + ".txt";
 
-//	GridPoints(); // generate field data and grid points
-
 	NumDataIO<double> data_io;
 	data_io.SetFilePath(path);
 	int total_num = data_io.GetTotalNumber();
-//	double field_data[total_num / 3][3];  // data format: rows * 3
-	double* field_data = new double[total_num];
+	vector<double> field_data(total_num);  // data format: rows * 3
 	data_io.SetTotalNumber(total_num);
-	data_io.ReadData((double*) field_data);
+	data_io.ReadData((double*) &field_data[0]);
 	for (int i = 0; i < total_num /3; i++) {
-		field[0][i] = field_data[i * 3];
-		field[1][i] = field_data[i * 3 + 1];
-		field[2][i] = field_data[i * 3 + 2];
+		field[0][i] = field_data[3 * i];
+		field[1][i] = field_data[3 * i + 1];
+		field[2][i] = field_data[3 * i + 2];
 	}
-	delete[] field_data;
 //END
 }
 
-void PredictiveField::SaveField(string file_path) {
-	NumDataIO<double> data_io;
-	data_io.SetFilePath(file_path);
-	data_io.SetTotalNumber(totalGridPoints * 3);
-	double* field_data = new double[totalGridPoints*3];
-	for (int i = 0; i < totalGridPoints; i++) {
-//
-		field_data[i * 3] = field[0][i];
-		field_data[i * 3 + 1] = field[1][i];
-		field_data[i * 3 + 2] = field[2][i];
+//void PredictiveField::SaveField(string file_path) {
+//	NumDataIO<double> data_io;
+//	data_io.SetFilePath(file_path);
+//	data_io.SetTotalNumber(totalGridPoints * 6);
+//	vector<double> field_data(totalGridPoints*6);
+//	for (int i = 0; i < totalGridPoints; i++) {
+//		field_data[3 * i]     = gridPoints[0][i];
+//		field_data[3 * i + 1] = gridPoints[1][i];
+//		field_data[3 * i + 2] = gridPoints[2][i];
+//		field_data[3 * i + 3] = field[0][i];
+//		field_data[3 * i + 4] = field[1][i];
+//		field_data[3 * i + 5] = field[2][i];
+//	}
+//	data_io.WriteData((double*)&field_data[0]);
+//}
+
+void PredictiveField::SaveField(string file_path)
+{
+	int zeroCount = 0;
+	for (int i = 0; i < totalGridPoints; i++)
+		if (field[0][i] == 0 || field[1][i] == 0 || field[2][i] == 0)
+			zeroCount++;
+
+	int nonZeroCount = totalGridPoints - zeroCount;
+
+	float ranges[3];
+	for (int i = 0; i < 3; i++) {
+		ranges[i] = viewAreaLimits[2 * i + 1] - viewAreaLimits[2 * i];
 	}
-	data_io.WriteData((double*) field_data);
-	delete[] field_data;
+
+	float meanDist = pow(ranges[0] * ranges[1] * ranges[2] / nonZeroCount, 1.0/3);
+
+	string str = string("Percent of nonzeros is " + to_string(100*float(nonZeroCount)/ totalGridPoints) + "\% or " + to_string(nonZeroCount) + " of " + to_string(totalGridPoints) + ", with mean vector distance " + to_string(meanDist) + "mm");
+
+	std::ofstream f(file_path);
+	f  << "TITLE     = \"" + str + "\"\nVARIABLES = \"x [mm]\"\n\"y [mm]\"\n\"z [mm]\"\n\"dx [mm]\"\n\"dy [mm]\"\n\"dz [mm]\"\n\"particlesNum [units]\"\nZONE T=\"Rectangular zone\"\nI=" << numGrids[0] << ", J=" << numGrids[1] << ", K=" << numGrids[2] << ", ZONETYPE=Ordered\nDATAPACKING=POINT\n";
+
+	std::ofstream f2(file_path + "_nonzerro");
+	f2 << "TITLE     = \"" + str + "\"\nVARIABLES = \"x [mm]\"\n\"y [mm]\"\n\"z [mm]\"\n\"dx [mm]\"\n\"dy [mm]\"\n\"dz [mm]\"\n\"particlesNum [units]\"\nZONE T=\"Rectangular zone\"\nI=" << nonZeroCount << ", J=1, K=1, ZONETYPE=Ordered\nDATAPACKING=POINT\n";
+
+	std::ofstream f3(file_path + "_af");
+	f3 << "x[pix]\ty[pix]\tz[pix]\tvx[pix/dt]\tvy[pix/dt]\tvz[pix/dt]\ts[UNKNOWN]\n";
+
+	int i, status;
+
+	for (int z = 0; z < numGrids[2]; z++) {
+		for (int y = 0; y < numGrids[1]; y++) {
+			for (int x = 0; x < numGrids[0]; x++) {
+				i = x * numGrids[2] * numGrids[1] + y * numGrids[2] + z;
+				f << gridPoints[0][i] << "\t" << gridPoints[1][i] << "\t" << gridPoints[2][i] << "\t" << field[0][i] << "\t" << field[1][i] << "\t" << field[2][i] << "\t" << field[3][i] << "\n";
+//Save to file
+				//Position p = KrigingInterpolation(Position(gridPoints[0][i], gridPoints[1][i] + 0.625, gridPoints[2][i] + 0.625));
+				//f << gridPoints[0][i] << "\t" << gridPoints[1][i] + 0.625 << "\t" << gridPoints[2][i] + 0.625 << "\t" << p.X() << "\t" << p.Y() << "\t" << p.Z() << "\n";
+
+				status = 3;
+
+				if ( field[0][i] == 0 && field[1][i] == 0 && field[2][i] == 0 ) status = 2;
+
+				// this works if the field has been already filtered
+				if ( true == m_bFiltered && 6 == field[3][i] ) status = 6;
+
+				if ( 3 == status || 6 == status ) f2 << gridPoints[0][i] << "\t" << gridPoints[1][i] << "\t" << gridPoints[2][i] << "\t" << field[0][i] << "\t" << field[1][i] << "\t" << field[2][i] << "\t" << field[3][i] << "\n";
+
+				f3 << gridPoints[0][i] << "\t" << gridPoints[1][i] << "\t" << gridPoints[2][i] << "\t" << field[0][i] << "\t" << field[1][i] << "\t" << field[2][i] << "\t" << status << "\n";
+			}
+		}
+	}
+}
+
+bool is_inside(double pos, double center, double boders) {
+	if ((pos - center) > boders || (center - pos) > boders)
+		return false;
+	return true;
+}
+
+int PredictiveField::ParticleFiltration() {
+
+	int n = 5, m = 5, p = 5;
+	int nd2 = (n - 1) / 2;
+	int md2 = (m - 1) / 2;
+	int pd2 = (p - 1) / 2;
+
+	int N = 3;
+	double acpt_fact = 0.5;
+
+	int counter = 0, ind;
+
+	for (int q = 0; q < N; q++) {
+
+		double k = 0;
+		double cur_k = 0;
+
+		for (int l = 0; l < numGrids[2]; l++) {
+			for (int j = 0; j < numGrids[1]; j++) {
+				for (int i = 0; i < numGrids[0]; i++) {
+
+					// calc proper mean
+					double x = 0, y = 0, z = 0;
+					counter = 0;
+
+					for (int c = -pd2; c <= pd2; c++) {
+						for (int b = -md2; b <= md2; b++) {
+							for (int a = -nd2; a <= nd2; a++) {
+								//если индекс выходит за границы области - не рассматривать
+								if (l + c < 0 || l + c >= numGrids[2] || j + b < 0 || j + b >= numGrids[1] || i + a < 0 || i + a >= numGrids[0])
+									continue;
+
+								ind = (i + a) * numGrids[2] * numGrids[1] + (j + b) * numGrids[2] + (l + c);
+
+								if (field[0][ind] == 0 && field[1][ind] == 0 && field[2][ind] == 0) continue;
+
+								x += field[0][ind];
+								y += field[1][ind];
+								z += field[2][ind];
+
+								counter++;
+							}
+						}
+					}
+
+					ind = i * numGrids[2] * numGrids[1] + j * numGrids[2] + l;
+					if (field[0][ind] == 0 && field[1][ind] == 0 && field[2][ind] == 0) {
+						field[3][ind] = 2;
+					}
+
+					if (counter == 0) continue;
+					Position avrU(x, y, z);
+					avrU /= counter;
+					
+					Position dU(field[0][ind], field[1][ind], field[2][ind]);
+					dU -= avrU;
+
+					//std::cout << dU.X() << " " << dU.Y() << " " << dU.Z() << endl;
+					if ((cur_k = dU.Magnitude()) > k) k = cur_k;
+
+				}
+			}
+
+		}
+
+		k *= acpt_fact;
+
+		//std::cout << k << endl;
+		for (int l = 0; l < numGrids[2]; l++) {
+			for (int j = 0; j < numGrids[1]; j++) {
+				for (int i = 0; i < numGrids[0]; i++) {
+
+					// calc proper mean
+					double x = 0, y = 0, z = 0;
+					counter = 0;
+
+					for (int c = -pd2; c <= pd2; c++) {
+						for (int b = -md2; b <= md2; b++) {
+							for (int a = -nd2; a <= nd2; a++) {
+								//если индекс выходит за границы области - не рассматривать
+								if (l + c < 0 || l + c >= numGrids[2] || j + b < 0 || j + b >= numGrids[1] || i + a < 0 || i + a >= numGrids[0])
+									continue;
+
+								ind = (i + a) * numGrids[2] * numGrids[1] + (j + b) * numGrids[2] + (l + c);
+
+								if (field[0][ind] == 0 && field[1][ind] == 0 && field[2][ind] == 0)
+									continue;
+
+								x += field[0][ind];
+								y += field[1][ind];
+								z += field[2][ind];
+
+								counter++;
+							}
+						}
+					}
+
+					if (counter == 0) continue;
+					Position avrU(x, y, z);
+					avrU /= counter;
+
+					ind = i * numGrids[2] * numGrids[1] + j * numGrids[2] + l;
+					Position dU(field[0][ind], field[1][ind], field[2][ind]);
+
+					dU -= avrU;
+
+					if (dU.Magnitude() > k || field[3][ind] == 2) {
+						field[0][ind] = avrU.X();
+						field[1][ind] = avrU.Y();
+						field[2][ind] = avrU.Z();
+						field[3][ind] = 6;
+					}
+
+				}
+			}
+		}
+
+	}
+
+	m_bFiltered = true;
+
+	return 0;
 }
