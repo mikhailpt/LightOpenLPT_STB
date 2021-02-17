@@ -1,0 +1,183 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Source Files\STB">
+      <UniqueIdentifier>{e641d01f-9ee8-436f-837a-75cca1bff444}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\DataIO">
+      <UniqueIdentifier>{87e4399a-a6bf-4e28-bb10-ad795b1b02e7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Math">
+      <UniqueIdentifier>{f1fe4438-2001-4ccf-9a16-9b6a3632cc2c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\DataIO">
+      <UniqueIdentifier>{7df35093-0666-4234-913b-4e557cc293ee}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Math">
+      <UniqueIdentifier>{2e519bdf-a0fa-41c1-acc8-2a4a8b124d60}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\STB">
+      <UniqueIdentifier>{9a2c5da7-0f7c-4997-8797-cdbee750c126}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\CPVGDFTracker.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\srcSTB\BackSTB.cpp">
+      <Filter>Source Files\STB</Filter>
+    </ClCompile>
+    <ClCompile Include="src\srcSTB\BoundaryCheck.cpp">
+      <Filter>Source Files\STB</Filter>
+    </ClCompile>
+    <ClCompile Include="src\srcSTB\Calibration.cpp">
+      <Filter>Source Files\STB</Filter>
+    </ClCompile>
+    <ClCompile Include="src\srcSTB\Camera.cpp">
+      <Filter>Source Files\STB</Filter>
+    </ClCompile>
+    <ClCompile Include="src\srcSTB\ForwardSTB.cpp">
+      <Filter>Source Files\STB</Filter>
+    </ClCompile>
+    <ClCompile Include="src\srcSTB\Frame.cpp">
+      <Filter>Source Files\STB</Filter>
+    </ClCompile>
+    <ClCompile Include="src\srcSTB\Image.cpp">
+      <Filter>Source Files\STB</Filter>
+    </ClCompile>
+    <ClCompile Include="src\srcSTB\IPR.cpp">
+      <Filter>Source Files\STB</Filter>
+    </ClCompile>
+    <ClCompile Include="src\srcSTB\OTF.cpp">
+      <Filter>Source Files\STB</Filter>
+    </ClCompile>
+    <ClCompile Include="src\srcSTB\ParticleFinder.cpp">
+      <Filter>Source Files\STB</Filter>
+    </ClCompile>
+    <ClCompile Include="src\srcSTB\Position.cpp">
+      <Filter>Source Files\STB</Filter>
+    </ClCompile>
+    <ClCompile Include="src\srcSTB\PredictiveField.cpp">
+      <Filter>Source Files\STB</Filter>
+    </ClCompile>
+    <ClCompile Include="src\srcSTB\Shaking.cpp">
+      <Filter>Source Files\STB</Filter>
+    </ClCompile>
+    <ClCompile Include="src\srcSTB\STB.cpp">
+      <Filter>Source Files\STB</Filter>
+    </ClCompile>
+    <ClCompile Include="src\srcSTB\Tiff2DFinder.cpp">
+      <Filter>Source Files\STB</Filter>
+    </ClCompile>
+    <ClCompile Include="src\srcSTB\Tiffload.cpp">
+      <Filter>Source Files\STB</Filter>
+    </ClCompile>
+    <ClCompile Include="src\srcSTB\Track.cpp">
+      <Filter>Source Files\STB</Filter>
+    </ClCompile>
+    <ClCompile Include="src\srcSTB\WesleyanCPV.cpp">
+      <Filter>Source Files\STB</Filter>
+    </ClCompile>
+    <ClCompile Include="src\srcDataIO\GDF.cpp">
+      <Filter>Source Files\DataIO</Filter>
+    </ClCompile>
+    <ClCompile Include="src\srcDataIO\NumDataIO.cpp">
+      <Filter>Source Files\DataIO</Filter>
+    </ClCompile>
+    <ClCompile Include="src\srcMath\Matrix.cpp">
+      <Filter>Source Files\Math</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="inc\DataIO\DataIO.h">
+      <Filter>Header Files\DataIO</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\DataIO\GDF.h">
+      <Filter>Header Files\DataIO</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\DataIO\NumDataIO.h">
+      <Filter>Header Files\DataIO</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\libMath\linterp.h">
+      <Filter>Header Files\Math</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\libMath\Logs.h">
+      <Filter>Header Files\Math</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\libMath\Matrix.h">
+      <Filter>Header Files\Math</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\libMath\MergeSort.h">
+      <Filter>Header Files\Math</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\libSTB\BackSTB.h">
+      <Filter>Header Files\STB</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\libSTB\BoundaryCheck.h">
+      <Filter>Header Files\STB</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\libSTB\Calibration.h">
+      <Filter>Header Files\STB</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\libSTB\Camera.h">
+      <Filter>Header Files\STB</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\libSTB\Common.h">
+      <Filter>Header Files\STB</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\libSTB\ForwardSTB.h">
+      <Filter>Header Files\STB</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\libSTB\Frame.h">
+      <Filter>Header Files\STB</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\libSTB\Image.h">
+      <Filter>Header Files\STB</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\libSTB\IPR.h">
+      <Filter>Header Files\STB</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\libSTB\OTF.h">
+      <Filter>Header Files\STB</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\libSTB\ParticleFinder.h">
+      <Filter>Header Files\STB</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\libSTB\Position.h">
+      <Filter>Header Files\STB</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\libSTB\PredictiveField.h">
+      <Filter>Header Files\STB</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\libSTB\Shaking.h">
+      <Filter>Header Files\STB</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\libSTB\STB.h">
+      <Filter>Header Files\STB</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\libSTB\Tiff2DFinder.h">
+      <Filter>Header Files\STB</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\libSTB\Tiffload.h">
+      <Filter>Header Files\STB</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\libSTB\Track.h">
+      <Filter>Header Files\STB</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\libSTB\WesleyanCPV.h">
+      <Filter>Header Files\STB</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

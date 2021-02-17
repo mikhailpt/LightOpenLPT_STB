@@ -1,10 +1,2 @@
-Debug
-/Debug-Local/
-/Debug-Unparallel/
-/Debug-Parallel/
-/Release/
-/Release-SingleCore/
-/Release_windows/
-/Release_windows_3/
-/Release_windows_2/
-/Debug_windows/
+x64
+.vs
